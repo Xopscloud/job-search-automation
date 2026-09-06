@@ -60,8 +60,9 @@ sudo ufw default allow outgoing
 sudo ufw allow 22/tcp comment 'SSH'
 sudo ufw allow 80/tcp comment 'HTTP (Caddy SSL)'
 sudo ufw allow 443/tcp comment 'HTTPS (Caddy SSL)'
+sudo ufw allow 5678/tcp comment 'n8n direct web'
 echo "y" | sudo ufw enable || true
-echo "✅ Firewall active on ports 22, 80, 443."
+echo "✅ Firewall active on ports 22, 80, 443, 5678."
 
 # 5. Environment configuration
 STACK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

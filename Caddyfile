@@ -2,14 +2,13 @@
     email {$SSL_EMAIL:admin@example.com}
 }
 
-# If running locally or without a custom domain, Caddy serves on port 80
-{$DOMAIN_NAME:localhost} {
-    # Forward all n8n traffic
+:80 {
+    # Forward all n8n traffic directly on port 80 (HTTP)
     reverse_proxy n8n:5678 {
         flush_interval -1
     }
 
-    # Internal API route to the scraper microservice (optional external access)
+    # Internal API route to the scraper microservice
     handle_path /api/scraper/* {
         reverse_proxy scraper-service:8000
     }
