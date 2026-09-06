@@ -1,0 +1,341 @@
+{
+  "name": "Master Job Search & Application Tracking Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 8 * * 1-5"
+            }
+          ]
+        }
+      },
+      "id": "1d8b7470-4e38-4e5a-8b1e-8e80a0a00001",
+      "name": "Daily Schedule Trigger (8 AM)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [220, 300]
+    },
+    {
+      "parameters": {},
+      "id": "1d8b7470-4e38-4e5a-8b1e-8e80a0a00002",
+      "name": "Manual Test Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [220, 480]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "search_term",
+              "value": "Full Stack Developer"
+            },
+            {
+              "name": "location",
+              "value": "Kochi, Kerala, India"
+            },
+            {
+              "name": "candidate_skills",
+              "value": "Python, FastAPI, React, PostgreSQL, Docker, AWS, REST APIs"
+            },
+            {
+              "name": "recipient_email",
+              "value": "your_email@example.com"
+            }
+          ],
+          "number": [
+            {
+              "name": "candidate_experience_years",
+              "value": 3
+            },
+            {
+              "name": "min_alert_score",
+              "value": 80
+            },
+            {
+              "name": "results_per_site",
+              "value": 25
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "1d8b7470-4e38-4e5a-8b1e-8e80a0a00003",
+      "name": "User Search Profile & Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.2,
+      "position": [460, 380]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://scraper-service:8000/api/scrape/all",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"search_term\": \"{{ $json.search_term }}\",\n  \"location\": \"{{ $json.location }}\",\n  \"results_per_site\": {{ $json.results_per_site }},\n  \"sources\": [\"linkedin\", \"indeed\", \"naukri\", \"infopark\", \"technopark\", \"google_jobs\"],\n  \"hours_old\": 72\n}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "1d8b7470-4e38-4e5a-8b1e-8e80a0a00004",
+      "name": "Call Scraper Microservice",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [700, 380]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Unpack jobs list from scraper response\nconst response = $input.first().json;\nconst config = $('User Search Profile & Config').first().json;\nconst jobs = response.jobs || [];\n\nif (!jobs.length) {\n  return [];\n}\n\nreturn jobs.map(job => ({\n  json: {\n    ...job,\n    candidate_skills: config.candidate_skills,\n    candidate_exp: config.candidate_experience_years,\n    recipient_email: config.recipient_email,\n    min_alert_score: config.min_alert_score\n  }\n}));"
+      },
+      "id": "1d8b7470-4e38-4e5a-8b1e-8e80a0a00005",
+      "name": "Unpack Jobs & Attach Profile",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [920, 380]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.GROQ_API_KEY || $env.OPENAI_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"llama-3.3-70b-versatile\",\n  \"response_format\": {\"type\": \"json_object\"},\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are an expert technical recruiter and career evaluator. Analyze the job posting against candidate profile. Extract recruiter contact info if found, evaluate match score (0-100), required skills, and summary. Return strict JSON with keys: match_score (integer 0-100), match_summary (string), required_skills (array of strings), missing_skills (array of strings), experience_required (string), recruiter_name (string or null), recruiter_email (string or null), recruiter_phone (string or null).\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Candidate Skills: {{ $json.candidate_skills }}\\nCandidate Experience: {{ $json.candidate_exp }} years\\n\\nJob Title: {{ $json.title }}\\nCompany: {{ $json.company }}\\nLocation: {{ $json.location }}\\nJob Description:\\n{{ $json.description }}\"\n    }\n  ]\n}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "1d8b7470-4e38-4e5a-8b1e-8e80a0a00006",
+      "name": "AI Match & Recruiter Extraction (LLM)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1140, 380],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Merge AI assessment results with the original job data\nconst items = $input.all();\nconst unpackedItems = $('Unpack Jobs & Attach Profile').all();\n\nconst enriched = [];\n\nfor (let i = 0; i < items.length; i++) {\n  const original = unpackedItems[i] ? unpackedItems[i].json : {};\n  const aiResponse = items[i].json;\n  \n  let aiData = {};\n  try {\n    const rawContent = aiResponse?.choices?.[0]?.message?.content;\n    if (rawContent) {\n      aiData = JSON.parse(rawContent);\n    }\n  } catch (err) {\n    // Fallback if parsing fails\n    aiData = {\n      match_score: 70,\n      match_summary: \"Parsed via heuristic match\",\n      required_skills: original.required_skills || []\n    };\n  }\n\n  enriched.push({\n    json: {\n      ...original,\n      match_score: aiData.match_score ?? (original.match_score || 65),\n      match_summary: aiData.match_summary || original.match_summary || \"Standard profile match\",\n      required_skills: (aiData.required_skills && aiData.required_skills.length) ? aiData.required_skills : original.required_skills,\n      experience: aiData.experience_required || original.experience || \"Not specified\",\n      recruiter_name: aiData.recruiter_name || original.recruiter_name || null,\n      recruiter_email: aiData.recruiter_email || original.recruiter_email || null,\n      recruiter_phone: aiData.recruiter_phone || original.recruiter_phone || null,\n      status: \"New\"\n    }\n  });\n}\n\n// Sort descending by match score\nenriched.sort((a, b) => (b.json.match_score || 0) - (a.json.match_score || 0));\n\nreturn enriched;"
+      },
+      "id": "1d8b7470-4e38-4e5a-8b1e-8e80a0a00007",
+      "name": "Merge & Rank Jobs by Score",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1360, 380]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://scraper-service:8000/api/export-excel",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"jobs\": {{ JSON.stringify($input.all().map(i => i.json)) }},\n  \"filename\": \"Job_Search_Matches_{{ $now.format('yyyy-MM-dd') }}.xlsx\"\n}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "id": "1d8b7470-4e38-4e5a-8b1e-8e80a0a00008",
+      "name": "Generate Excel Report (.xlsx)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1600, 240]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $env.GOOGLE_SHEET_ID }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "={{ $env.GOOGLE_SHEET_TAB_NAME || 'Active Jobs' }}",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Match Score": "={{ $json.match_score }}%",
+            "Job Title": "={{ $json.title }}",
+            "Company Name": "={{ $json.company }}",
+            "Company Details": "={{ $json.company_details }}",
+            "Location": "={{ $json.location }}",
+            "Required Skills": "={{ Array.isArray($json.required_skills) ? $json.required_skills.join(', ') : $json.required_skills }}",
+            "Experience": "={{ $json.experience }}",
+            "Salary": "={{ $json.salary || 'Not Disclosed' }}",
+            "Date Posted": "={{ $json.date_posted }}",
+            "Job URL": "={{ $json.job_url }}",
+            "Apply Method": "={{ $json.apply_method }}",
+            "Recruiter Name": "={{ $json.recruiter_name || '' }}",
+            "Recruiter Email": "={{ $json.recruiter_email || '' }}",
+            "Recruiter Phone": "={{ $json.recruiter_phone || '' }}",
+            "Source Website": "={{ $json.source_website }}",
+            "Match Summary": "={{ $json.match_summary }}",
+            "Status": "={{ $json.status }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "1d8b7470-4e38-4e5a-8b1e-8e80a0a00009",
+      "name": "Sync to Google Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.3,
+      "position": [1600, 480],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prepare HTML email digest with summary cards\nconst allJobs = $('Merge & Rank Jobs by Score').all().map(i => i.json);\nconst excelBinary = $input.first().binary;\nconst config = $('User Search Profile & Config').first().json;\n\nconst highMatches = allJobs.filter(j => (j.match_score || 0) >= 80);\nconst topJobs = allJobs.slice(0, 10);\n\n// Build HTML for top jobs\nlet jobCardsHtml = '';\nfor (const job of topJobs) {\n  const isHigh = (job.match_score || 0) >= 80;\n  const badgeBg = isHigh ? '#dcfce7' : '#fef9c3';\n  const badgeColor = isHigh ? '#166534' : '#854d0e';\n  const skillsBadges = (job.required_skills || []).map(s => \n    `<span style=\"background:#f1f5f9;color:#334155;font-size:11px;padding:2px 8px;border-radius:4px;margin-right:4px;display:inline-block;\">${s}</span>`\n  ).join('');\n  \n  const recruiterBadge = job.recruiter_email ? `\n    <div style=\"background:#f0fdf4;border:1px dashed #86efac;border-radius:6px;padding:8px 12px;margin:10px 0;font-size:12px;color:#166534;\">\n      👤 <strong>Recruiter Contact:</strong> ${job.recruiter_name || 'Hiring Team'} &bull; \n      <a href=\"mailto:${job.recruiter_email}?subject=Application for ${encodeURIComponent(job.title)}\" style=\"color:#166534;font-weight:600;\">${job.recruiter_email}</a>\n      ${job.recruiter_phone ? ` &bull; 📞 ${job.recruiter_phone}` : ''}\n    </div>` : '';\n\n  jobCardsHtml += `\n  <div style=\"background:#ffffff;border:1px solid #e2e8f0;border-radius:10px;padding:18px;margin-bottom:16px;\">\n    <div style=\"display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;\">\n      <div>\n        <h4 style=\"font-size:16px;font-weight:600;color:#0f172a;margin:0 0 4px 0;\">${job.title}</h4>\n        <div style=\"font-size:13px;color:#475569;\">${job.company} &bull; ${job.location}</div>\n      </div>\n      <span style=\"background:${badgeBg};color:${badgeColor};font-size:12px;font-weight:700;padding:4px 10px;border-radius:20px;\">\n        ${job.match_score}% Match\n      </span>\n    </div>\n    <div style=\"font-size:12px;color:#64748b;margin:8px 0;\">\n      💼 ${job.experience || 'Experienced'} &bull; 💰 ${job.salary || 'Not Disclosed'} &bull; 🌐 ${job.source_website} &bull; 📅 ${job.date_posted}\n    </div>\n    ${skillsBadges ? `<div style=\"margin:8px 0;\">${skillsBadges}</div>` : ''}\n    ${recruiterBadge}\n    <p style=\"font-size:12px;color:#475569;margin:8px 0;font-style:italic;\">\"${job.match_summary || ''}\"</p>\n    <div style=\"margin-top:12px;\">\n      <a href=\"${job.job_url}\" target=\"_blank\" style=\"background:#2563eb;color:#ffffff;padding:7px 14px;border-radius:6px;font-size:12px;font-weight:600;text-decoration:none;display:inline-block;margin-right:8px;\">Apply Now ↗</a>\n      ${job.recruiter_email ? `<a href=\"mailto:${job.recruiter_email}?subject=Application for ${encodeURIComponent(job.title)}\" style=\"background:#f1f5f9;color:#334155;border:1px solid #cbd5e1;padding:7px 14px;border-radius:6px;font-size:12px;font-weight:600;text-decoration:none;display:inline-block;\">Direct Email HR</a>` : ''}\n    </div>\n  </div>`;\n}\n\nconst emailHtml = `\n<!DOCTYPE html>\n<html>\n<body style=\"font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background-color:#f1f5f9;margin:0;padding:20px;\">\n  <div style=\"max-width:680px;margin:0 auto;background:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0;\">\n    <div style=\"background:#1e293b;color:#ffffff;padding:24px;\">\n      <h2 style=\"margin:0 0 6px 0;font-size:20px;\">🚀 Daily Automated Job Search Digest</h2>\n      <p style=\"margin:0;font-size:13px;color:#94a3b8;\">LinkedIn &bull; Indeed &bull; Naukri &bull; Infopark Kochi &bull; Technopark Trivandrum &bull; ATS</p>\n    </div>\n    <div style=\"background:#f8fafc;border-bottom:1px solid #e2e8f0;padding:14px 24px;display:flex;\">\n      <div style=\"flex:1;text-align:center;\"><div style=\"font-size:18px;font-weight:700;\">${allJobs.length}</div><div style=\"font-size:11px;color:#64748b;\">Total Jobs</div></div>\n      <div style=\"flex:1;text-align:center;\"><div style=\"font-size:18px;font-weight:700;color:#16a34a;\">${highMatches.length}</div><div style=\"font-size:11px;color:#64748b;\">High Fits (&ge;80%)</div></div>\n    </div>\n    <div style=\"padding:24px;\">\n      <div style=\"background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:12px 16px;margin-bottom:20px;font-size:13px;color:#1e40af;\">\n        📎 <strong>Attached:</strong> Complete structured Excel spreadsheet (.xlsx) with all discovered postings, links, and recruiter contacts.\n      </div>\n      <h3 style=\"font-size:14px;text-transform:uppercase;color:#475569;margin-bottom:14px;\">🎯 Top Matches for Your Profile</h3>\n      ${jobCardsHtml}\n    </div>\n  </div>\n</body>\n</html>`;\n\nreturn [{\n  json: {\n    recipient_email: config.recipient_email,\n    subject: `🚀 Daily Job Digest: ${highMatches.length} High Matches Found (${allJobs.length} New Openings)`,\n    html: emailHtml,\n    high_matches_count: highMatches.length,\n    total_jobs: allJobs.length\n  },\n  binary: excelBinary\n}];"
+      },
+      "id": "1d8b7470-4e38-4e5a-8b1e-8e80a0a00010",
+      "name": "Prepare Email & Attach Excel",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1840, 240]
+    },
+    {
+      "parameters": {
+        "fromEmail": "={{ $env.EMAIL_FROM || 'Job Search Automation <noreply@example.com>' }}",
+        "toEmail": "={{ $json.recipient_email }}",
+        "subject": "={{ $json.subject }}",
+        "html": "={{ $json.html }}",
+        "attachments": "data",
+        "options": {}
+      },
+      "id": "1d8b7470-4e38-4e5a-8b1e-8e80a0a00011",
+      "name": "Send Email Digest with Excel",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [2080, 240],
+      "continueOnFail": true
+    }
+  ],
+  "connections": {
+    "Daily Schedule Trigger (8 AM)": {
+      "main": [
+        [
+          {
+            "node": "User Search Profile & Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Test Trigger": {
+      "main": [
+        [
+          {
+            "node": "User Search Profile & Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "User Search Profile & Config": {
+      "main": [
+        [
+          {
+            "node": "Call Scraper Microservice",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Scraper Microservice": {
+      "main": [
+        [
+          {
+            "node": "Unpack Jobs & Attach Profile",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Unpack Jobs & Attach Profile": {
+      "main": [
+        [
+          {
+            "node": "AI Match & Recruiter Extraction (LLM)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Match & Recruiter Extraction (LLM)": {
+      "main": [
+        [
+          {
+            "node": "Merge & Rank Jobs by Score",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge & Rank Jobs by Score": {
+      "main": [
+        [
+          {
+            "node": "Generate Excel Report (.xlsx)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Sync to Google Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Excel Report (.xlsx)": {
+      "main": [
+        [
+          {
+            "node": "Prepare Email & Attach Excel",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Email & Attach Excel": {
+      "main": [
+        [
+          {
+            "node": "Send Email Digest with Excel",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

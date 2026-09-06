@@ -1,0 +1,136 @@
+{
+  "name": "Apify Cloud Job Scraping Sub-Workflow",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "2d8b7470-4e38-4e5a-8b1e-8e80a0a00001",
+      "name": "Trigger Apify Run",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "search_term",
+              "value": "Full Stack Developer"
+            },
+            {
+              "name": "location",
+              "value": "India"
+            },
+            {
+              "name": "apify_actor_id",
+              "value": "hKReTXvDeGBs9vclT"
+            }
+          ],
+          "number": [
+            {
+              "name": "max_items",
+              "value": 50
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "2d8b7470-4e38-4e5a-8b1e-8e80a0a00002",
+      "name": "Apify Configuration",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.apify.com/v2/acts/{{ $json.apify_actor_id }}/runs?token={{ $env.APIFY_API_TOKEN }}&waitForFinish=120",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"queries\": [\n    \"{{ $json.search_term }} in {{ $json.location }}\"\n  ],\n  \"maxItems\": {{ $json.max_items }},\n  \"country\": \"IN\"\n}",
+        "options": {
+          "timeout": 150000
+        }
+      },
+      "id": "2d8b7470-4e38-4e5a-8b1e-8e80a0a00003",
+      "name": "Trigger Apify Actor & Wait",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [700, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://api.apify.com/v2/datasets/{{ $json.data.defaultDatasetId }}/items?token={{ $env.APIFY_API_TOKEN }}&format=json",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "2d8b7470-4e38-4e5a-8b1e-8e80a0a00004",
+      "name": "Fetch Scraped Dataset Items",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [940, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Normalize Apify items to standard schema\nconst items = $input.first().json;\nif (!Array.isArray(items)) {\n  return [];\n}\n\nreturn items.map(item => ({\n  json: {\n    title: item.title || item.jobTitle || 'N/A',\n    company: item.companyName || item.company || 'N/A',\n    location: item.location || 'India',\n    description: item.description || item.jobDescription || '',\n    job_url: item.url || item.jobUrl || item.link || '',\n    date_posted: item.postedAt || item.date || new Date().toISOString().split('T')[0],\n    salary: item.salary || 'Not Disclosed',\n    source_website: 'Apify Actor (LinkedIn/Indeed)'\n  }\n}));"
+      },
+      "id": "2d8b7470-4e38-4e5a-8b1e-8e80a0a00005",
+      "name": "Normalize Apify Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1180, 300]
+    }
+  ],
+  "connections": {
+    "Trigger Apify Run": {
+      "main": [
+        [
+          {
+            "node": "Apify Configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apify Configuration": {
+      "main": [
+        [
+          {
+            "node": "Trigger Apify Actor & Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Trigger Apify Actor & Wait": {
+      "main": [
+        [
+          {
+            "node": "Fetch Scraped Dataset Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Scraped Dataset Items": {
+      "main": [
+        [
+          {
+            "node": "Normalize Apify Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

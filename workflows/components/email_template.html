@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Daily Automated Job Digest</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      line-height: 1.5;
+      color: #1e293b;
+      background-color: #f1f5f9;
+      margin: 0;
+      padding: 20px;
+    }
+    .container {
+      max-width: 680px;
+      margin: 0 auto;
+      background: #ffffff;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+      border: 1px solid #e2e8f0;
+    }
+    .header {
+      background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+      color: #ffffff;
+      padding: 28px;
+      text-align: left;
+    }
+    .header h1 {
+      margin: 0 0 8px 0;
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+    }
+    .header p {
+      margin: 0;
+      font-size: 13px;
+      color: #94a3b8;
+    }
+    .stats-bar {
+      display: flex;
+      background: #f8fafc;
+      border-bottom: 1px solid #e2e8f0;
+      padding: 16px 28px;
+    }
+    .stat-item {
+      flex: 1;
+      text-align: center;
+    }
+    .stat-num {
+      font-size: 20px;
+      font-weight: 700;
+      color: #0f172a;
+    }
+    .stat-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      color: #64748b;
+      letter-spacing: 0.5px;
+    }
+    .content {
+      padding: 28px;
+    }
+    .job-card {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 20px;
+      margin-bottom: 20px;
+      transition: all 0.2s ease;
+    }
+    .job-card:hover {
+      border-color: #cbd5e1;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.04);
+    }
+    .job-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 10px;
+    }
+    .job-title {
+      font-size: 17px;
+      font-weight: 600;
+      color: #0f172a;
+      margin: 0 0 4px 0;
+    }
+    .job-company {
+      font-size: 14px;
+      color: #475569;
+      font-weight: 500;
+    }
+    .badge {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .badge-high {
+      background: #dcfce7;
+      color: #166534;
+      border: 1px solid #bbf7d0;
+    }
+    .badge-mid {
+      background: #fef9c3;
+      color: #854d0e;
+      border: 1px solid #fef08a;
+    }
+    .job-meta {
+      font-size: 12px;
+      color: #64748b;
+      margin: 8px 0;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .job-meta span {
+      display: flex;
+      align-items: center;
+    }
+    .skills-box {
+      margin: 12px 0;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .skill-pill {
+      background: #f1f5f9;
+      color: #334155;
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-weight: 500;
+    }
+    .recruiter-info {
+      background: #f0fdf4;
+      border: 1px dashed #86efac;
+      border-radius: 6px;
+      padding: 8px 12px;
+      margin: 12px 0;
+      font-size: 12px;
+      color: #166534;
+    }
+    .action-buttons {
+      margin-top: 14px;
+      display: flex;
+      gap: 10px;
+    }
+    .btn {
+      display: inline-block;
+      padding: 8px 16px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      text-decoration: none;
+      text-align: center;
+    }
+    .btn-primary {
+      background: #2563eb;
+      color: #ffffff !important;
+    }
+    .btn-secondary {
+      background: #f1f5f9;
+      color: #334155 !important;
+      border: 1px solid #cbd5e1;
+    }
+    .footer {
+      background: #f8fafc;
+      padding: 20px 28px;
+      border-top: 1px solid #e2e8f0;
+      text-align: center;
+      font-size: 12px;
+      color: #64748b;
+    }
+    .attachment-notice {
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      border-radius: 8px;
+      padding: 12px 16px;
+      margin-bottom: 24px;
+      font-size: 13px;
+      color: #1e40af;
+      display: flex;
+      align-items: center;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <!-- Header -->
+    <div class="header">
+      <h1>🚀 Daily Job Discovery Digest</h1>
+      <p>Automated scan across LinkedIn, Indeed, Naukri, Infopark Kochi, Technopark & Career Sites</p>
+    </div>
+
+    <!-- Stats Bar -->
+    <div class="stats-bar">
+      <div class="stat-item">
+        <div class="stat-num">{{ $json.total_found || 0 }}</div>
+        <div class="stat-label">Total Scanned</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-num" style="color: #2563eb;">{{ $json.new_jobs_count || 0 }}</div>
+        <div class="stat-label">New Matches</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-num" style="color: #16a34a;">{{ $json.high_matches_count || 0 }}</div>
+        <div class="stat-label">High Fits (&ge;80%)</div>
+      </div>
+    </div>
+
+    <!-- Content Area -->
+    <div class="content">
+      
+      <div class="attachment-notice">
+        📎 <strong>Complete Excel Spreadsheet Attached:</strong> All scraped jobs with live links, recruiter emails, and match ratings have been compiled into the attached <code>.xlsx</code> file.
+      </div>
+
+      <h3 style="font-size: 15px; text-transform: uppercase; letter-spacing: 0.5px; color: #475569; margin-bottom: 16px;">
+        🎯 Top Recommended Opportunities
+      </h3>
+
+      <!-- Job Card Example / Template -->
+      <!-- In n8n, this is looped dynamically using HTML expression -->
+      {{#each $json.top_jobs}}
+      <div class="job-card">
+        <div class="job-header">
+          <div>
+            <h4 class="job-title">{{this.title}}</h4>
+            <div class="job-company">{{this.company}} &bull; {{this.location}}</div>
+          </div>
+          <span class="badge {{#if this.match_score >= 80}}badge-high{{else}}badge-mid{{/if}}">
+            {{this.match_score}}% Match
+          </span>
+        </div>
+
+        <div class="job-meta">
+          <span>💼 {{this.experience}}</span>
+          <span>💰 {{this.salary}}</span>
+          <span>🌐 Source: {{this.source_website}}</span>
+          <span>📅 Posted: {{this.date_posted}}</span>
+        </div>
+
+        {{#if this.required_skills.length}}
+        <div class="skills-box">
+          {{#each this.required_skills}}
+          <span class="skill-pill">{{this}}</span>
+          {{/each}}
+        </div>
+        {{/if}}
+
+        {{#if this.recruiter_email}}
+        <div class="recruiter-info">
+          👤 <strong>Recruiter Contact:</strong> {{this.recruiter_name || 'Hiring Team'}} &bull; 
+          <a href="mailto:{{this.recruiter_email}}?subject=Application for {{this.title}}" style="color: #166534; font-weight: 600;">{{this.recruiter_email}}</a>
+          {{#if this.recruiter_phone}} &bull; 📞 {{this.recruiter_phone}}{{/if}}
+        </div>
+        {{/if}}
+
+        {{#if this.match_summary}}
+        <p style="font-size: 12px; color: #475569; margin: 8px 0; font-style: italic;">
+          "{{this.match_summary}}"
+        </p>
+        {{/if}}
+
+        <div class="action-buttons">
+          <a href="{{this.job_url}}" target="_blank" class="btn btn-primary">Apply Now ↗</a>
+          {{#if this.recruiter_email}}
+          <a href="mailto:{{this.recruiter_email}}?subject=Application for {{this.title}} role" class="btn btn-secondary">Direct Email HR</a>
+          {{/if}}
+        </div>
+      </div>
+      {{/each}}
+
+    </div>
+
+    <!-- Footer -->
+    <div class="footer">
+      Automated by your private <strong>Job Search Automation Workflow</strong> on AWS EC2.<br>
+      Configured to run automatically every morning.
+    </div>
+  </div>
+
+</body>
+</html>
