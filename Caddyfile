@@ -3,13 +3,15 @@
 }
 
 {$DOMAIN_NAME:n8n.johnsonthomas.co.in} {
-    # Forward all traffic to n8n
-    reverse_proxy n8n:5678 {
-        flush_interval -1
-    }
-
-    # Internal API route to scraper microservice
+    # 1. Scraper Microservice route (matches first)
     handle_path /api/scraper/* {
         reverse_proxy scraper-service:8000
+    }
+
+    # 2. Catch-all: forward all other traffic to n8n
+    handle {
+        reverse_proxy n8n:5678 {
+            flush_interval -1
+        }
     }
 }
