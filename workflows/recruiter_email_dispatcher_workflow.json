@@ -1,0 +1,128 @@
+{
+  "name": "Recruiter Cold-Email Dispatcher (Gmail with Resume - No Attribution)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "send-recruiter-email",
+        "responseMode": "responseNode",
+        "responseData": "firstEntryJson",
+        "options": {}
+      },
+      "id": "e001a1b2-1111-4444-8888-000000000001",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "webhookId": "send-recruiter-email"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prepare email payload, HTML body, and convert base64 resume attachment to binary\nconst payload = $input.first()?.json?.body || {};\nconst attachments = payload.attachments || [];\n\nlet binaryData = undefined;\nif (Array.isArray(attachments) && attachments.length > 0 && attachments[0]?.content) {\n  binaryData = {\n    attachment_0: {\n      data: attachments[0].content,\n      fileName: attachments[0].filename || 'Johnson_Thomas_DevOps_Resume.pdf',\n      mimeType: attachments[0].type || 'application/pdf'\n    }\n  };\n}\n\nreturn [{\n  json: {\n    to: payload.to,\n    subject: payload.subject,\n    body: payload.body,\n    html: payload.html || payload.body,\n    from_name: payload.from_name || 'Johnson Thomas',\n    recruiter_name: payload.recruiter_name || 'Hiring Team',\n    company: payload.company || '',\n    job_title: payload.job_title || '',\n    has_attachment: Boolean(binaryData)\n  },\n  ...(binaryData ? { binary: binaryData } : {})\n}];"
+      },
+      "id": "e001a1b2-1111-4444-8888-000000000005",
+      "name": "Attach Resume Binary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [480, 300]
+    },
+    {
+      "parameters": {
+        "fromEmail": "=\"Johnson Thomas\" <" + ($env.SMTP_USER || "johnsonthomas.devops@gmail.com") + ">",
+        "toEmail": "={{ $json.to }}",
+        "subject": "={{ $json.subject }}",
+        "text": "={{ $json.body }}",
+        "html": "={{ $json.html }}",
+        "attachments": "={{ $json.has_attachment ? 'attachment_0' : '' }}",
+        "options": {
+          "appendAttribution": false,
+          "allowUnauthorizedCerts": false
+        }
+      },
+      "id": "e001a1b2-1111-4444-8888-000000000002",
+      "name": "Send Email via Gmail SMTP",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [720, 300],
+      "continueOnFail": true,
+      "credentials": {
+        "smtp": {
+          "id": "smtp-gmail-outreach",
+          "name": "Gmail SMTP"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Verify dispatch status and format response payload\nconst result = $input.first()?.json || {};\nconst inputData = $('Attach Resume Binary').first()?.json || {};\n\nif (result.error) {\n  return [{\n    json: {\n      success: false,\n      error: `Failed to send email: ${result.error.message || result.error}`,\n      to: inputData.to,\n      timestamp: new Date().toISOString()\n    }\n  }];\n}\n\nreturn [{\n  json: {\n    success: true,\n    message: `Cold outreach email successfully sent to ${inputData.to} via Gmail without attribution!`,\n    to: inputData.to,\n    subject: inputData.subject,\n    has_resume: Boolean(inputData.has_attachment),\n    sent_at: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "e001a1b2-1111-4444-8888-000000000003",
+      "name": "Format Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [960, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "firstIncomingItem",
+        "responseCode": "={{ $json.success ? 200 : 400 }}",
+        "options": {}
+      },
+      "id": "e001a1b2-1111-4444-8888-000000000004",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1200, 300]
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Attach Resume Binary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Attach Resume Binary": {
+      "main": [
+        [
+          {
+            "node": "Send Email via Gmail SMTP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Email via Gmail SMTP": {
+      "main": [
+        [
+          {
+            "node": "Format Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Response": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

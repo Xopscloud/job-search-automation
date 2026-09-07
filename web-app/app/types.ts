@@ -1,3 +1,46 @@
+export interface EmailDraft {
+  subject: string;
+  body: string;
+  status: 'drafted' | 'sending' | 'sent' | 'failed';
+  sent_at?: string;
+  error?: string;
+}
+
+export interface SentEmailRecord {
+  id: string;
+  job_id: string;
+  to: string;
+  recruiter_name: string;
+  company: string;
+  job_title: string;
+  subject: string;
+  body: string;
+  sent_at: string;
+  timestamp: string;
+  source_website?: string;
+}
+
+export type ApplicationStatus = 'Pending' | 'Applied' | 'Interviewing' | 'Offered' | 'Rejected';
+
+export interface JobApplicationRecord {
+  id: string;
+  index?: number;
+  company: string;
+  role: string;
+  applied_on: string;
+  follow_up_date?: string;
+  status: ApplicationStatus;
+  source: string;
+  salary_aed?: string;
+  applied_through: string;
+  contact_email?: string;
+  follow_up_done: boolean;
+  notes?: string;
+  job_id?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export interface JobPost {
   job_id: string;
   title: string;
@@ -18,6 +61,7 @@ export interface JobPost {
   match_score: number;
   match_summary: string;
   status: 'New' | 'Applied' | 'Interviewing' | 'Rejected' | 'Saved';
+  email_draft?: EmailDraft;
 }
 
 export type StageId =

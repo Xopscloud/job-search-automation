@@ -1,0 +1,95 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>
+endobj
+4 0 obj
+<< /Length 2143 >>
+stream
+BT
+/F1 22 Tf
+50 740 Td
+(JOHNSON THOMAS) Tj
+/F1 12 Tf
+0 -20 Td
+(DevOps & Cloud Engineer | Kubernetes | CI/CD | Terraform | AWS | Linux) Tj
+/F1 10 Tf
+0 -16 Td
+(Email: johnsonthomasmadukkakuzhiyil@gmail.com | Phone: +91 94970 65992 | Remote / India) Tj
+/F1 14 Tf
+0 -28 Td
+(PROFESSIONAL SUMMARY) Tj
+/F1 10 Tf
+0 -16 Td
+(Results-oriented DevOps and Cloud Engineer with 3+ years of experience designing and optimizing) Tj
+0 -14 Td
+(enterprise cloud architectures, automated CI/CD deployment pipelines, container orchestration) Tj
+0 -14 Td
+(with Kubernetes and Docker, and Infrastructure as Code with Terraform and Ansible.) Tj
+/F1 14 Tf
+0 -26 Td
+(CORE TECHNICAL SKILLS) Tj
+/F1 10 Tf
+0 -16 Td
+(Cloud Platforms: AWS (EKS, EC2, S3, RDS, IAM, CloudFront, VPC), GCP, Azure) Tj
+0 -14 Td
+(Containers & Orchestration: Docker, Kubernetes, Helm, Docker Compose) Tj
+0 -14 Td
+(Infrastructure as Code: Terraform, Ansible, CloudFormation) Tj
+0 -14 Td
+(CI/CD & Version Control: Jenkins, GitHub Actions, GitLab CI, ArgoCD, Git) Tj
+0 -14 Td
+(Observability & Logging: Prometheus, Grafana, ELK Stack, CloudWatch) Tj
+0 -14 Td
+(Operating Systems & Scripting: Linux (Ubuntu/Debian, CentOS/RHEL), Bash, Python) Tj
+0 -14 Td
+(Security & Compliance: DevSecOps, Trivy, SonarQube, Vault, SSL/TLS, Zero Trust) Tj
+/F1 14 Tf
+0 -26 Td
+(PROFESSIONAL EXPERIENCE) Tj
+/F1 11 Tf
+0 -16 Td
+(DevOps & Cloud Infrastructure Engineer | 2022 - Present) Tj
+/F1 10 Tf
+0 -14 Td
+(- Automated multi-stage CI/CD pipelines cutting deployment cycles by 65%.) Tj
+0 -14 Td
+(- Managed production Kubernetes clusters running microservices with 99.95% uptime.) Tj
+0 -14 Td
+(- Standardized cloud infrastructure provisioning using Terraform modules and state locking.) Tj
+0 -14 Td
+(- Implemented proactive Prometheus and Grafana alerts reducing MTTR for critical alerts.) Tj
+0 -14 Td
+(- Integrated automated DevSecOps container security scans with Trivy and SonarQube.) Tj
+/F1 14 Tf
+0 -26 Td
+(EDUCATION & CERTIFICATIONS) Tj
+/F1 10 Tf
+0 -16 Td
+(Bachelor of Technology / Engineering in Computer Science) Tj
+0 -14 Td
+(AWS Certified Solutions Architect & Certified Kubernetes Administrator (CKA) coursework) Tj
+ET
+endstream
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+xref
+0 6
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000241 00000 n 
+0000002436 00000 n 
+trailer
+<< /Size 6 /Root 1 0 R >>
+startxref
+2506
+%%EOF

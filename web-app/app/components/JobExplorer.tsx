@@ -15,6 +15,7 @@ export const JobExplorer: React.FC<JobExplorerProps> = ({ jobs, searchTerm, onTr
   const [selectedPortal, setSelectedPortal] = useState<string>('all');
   const [selectedLocation, setSelectedLocation] = useState<string>('all');
   const [minScoreFilter, setMinScoreFilter] = useState<number>(0);
+  const [onlyOutreachReady, setOnlyOutreachReady] = useState<boolean>(false);
   const [filterQuery, setFilterQuery] = useState<string>('');
   const [isExporting, setIsExporting] = useState<boolean>(false);
 
@@ -36,8 +37,16 @@ export const JobExplorer: React.FC<JobExplorerProps> = ({ jobs, searchTerm, onTr
     return jobs.filter((job) => {
       // 1. Portal filter
       if (selectedPortal !== 'all') {
-        const portal = (job.source_website || '').toLowerCase();
-        if (!portal.includes(selectedPortal.toLowerCase())) {
+        const portal = (job.source_website || '').toLowerCase().replace(/[\s_-]/g, '');
+        const target = selectedPortal.toLowerCase().replace(/[\s_-]/g, '');
+
+        const isMatch =
+          portal.includes(target) ||
+          target.includes(portal) ||
+          (selectedPortal === 'ats' && (portal.includes('career') || portal.includes('company') || portal.includes('ats'))) ||
+          (selectedPortal === 'google_jobs' && portal.includes('google'));
+
+        if (!isMatch) {
           return false;
         }
       }
@@ -56,7 +65,12 @@ export const JobExplorer: React.FC<JobExplorerProps> = ({ jobs, searchTerm, onTr
         return false;
       }
 
-      // 4. In-page search text filter
+      // 4. Recruiter Email Outreach filter
+      if (onlyOutreachReady && !job.recruiter_email) {
+        return false;
+      }
+
+      // 5. In-page search text filter
       if (filterQuery.trim()) {
         const q = filterQuery.toLowerCase();
         const matchTitle = (job.title || '').toLowerCase().includes(q);
@@ -108,10 +122,13 @@ export const JobExplorer: React.FC<JobExplorerProps> = ({ jobs, searchTerm, onTr
     { id: 'indeed', name: 'Indeed' },
     { id: 'naukri', name: 'Naukri' },
     { id: 'glassdoor', name: 'Glassdoor' },
+    { id: 'zip_recruiter', name: 'ZipRecruiter' },
+    { id: 'google_jobs', name: 'Google Jobs' },
     { id: 'jobicy', name: 'Jobicy' },
     { id: 'ats', name: 'Company ATS' },
     { id: 'infopark', name: 'Infopark' },
     { id: 'technopark', name: 'Technopark' },
+    { id: 'bayt', name: 'Bayt' },
   ];
 
   const locationPresets = [
@@ -123,6 +140,25 @@ export const JobExplorer: React.FC<JobExplorerProps> = ({ jobs, searchTerm, onTr
     { id: 'trivandrum', label: 'Trivandrum' },
     { id: 'pune', label: 'Pune' },
   ];
+
+  const portalCounts = useMemo(() => {
+    const counts: Record<string, number> = { all: jobs.length };
+    portals.forEach((p) => {
+      if (p.id === 'all') return;
+      const target = p.id.toLowerCase().replace(/[\s_-]/g, '');
+      const count = jobs.filter((job) => {
+        const portal = (job.source_website || '').toLowerCase().replace(/[\s_-]/g, '');
+        return (
+          portal.includes(target) ||
+          target.includes(portal) ||
+          (p.id === 'ats' && (portal.includes('career') || portal.includes('company') || portal.includes('ats'))) ||
+          (p.id === 'google_jobs' && portal.includes('google'))
+        );
+      }).length;
+      counts[p.id] = count;
+    });
+    return counts;
+  }, [jobs]);
 
   return (
     <div style={{ marginTop: '32px' }}>
@@ -137,16 +173,19 @@ export const JobExplorer: React.FC<JobExplorerProps> = ({ jobs, searchTerm, onTr
 
         {/* Portal Filter Pills & Search */}
         <div className="portal-filters-row">
-          {portals.map((p) => (
-            <button
-              key={p.id}
-              type="button"
-              className={`portal-filter-btn ${selectedPortal === p.id ? 'active' : ''}`}
-              onClick={() => setSelectedPortal(p.id)}
-            >
-              {p.name}
-            </button>
-          ))}
+          {portals.map((p) => {
+            const count = portalCounts[p.id] ?? 0;
+            return (
+              <button
+                key={p.id}
+                type="button"
+                className={`portal-filter-btn ${selectedPortal === p.id ? 'active' : ''}`}
+                onClick={() => setSelectedPortal(p.id)}
+              >
+                {p.name} {count > 0 ? `(${count})` : ''}
+              </button>
+            );
+          })}
 
           <button
             type="button"
@@ -155,6 +194,20 @@ export const JobExplorer: React.FC<JobExplorerProps> = ({ jobs, searchTerm, onTr
             title="Filter jobs matching 80% or higher"
           >
             🔥 High Fit (&ge;80%)
+          </button>
+
+          <button
+            type="button"
+            className={`portal-filter-btn ${onlyOutreachReady ? 'active' : ''}`}
+            onClick={() => setOnlyOutreachReady(!onlyOutreachReady)}
+            title="Filter jobs that have recruiter emails and ready-to-send cold drafts"
+            style={
+              onlyOutreachReady
+                ? { background: 'var(--primary)', color: '#ffffff', borderColor: 'var(--primary)' }
+                : {}
+            }
+          >
+            ✉️ Recruiter Email ({jobs.filter((j) => Boolean(j.recruiter_email)).length})
           </button>
 
           <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
@@ -296,6 +349,7 @@ export const JobExplorer: React.FC<JobExplorerProps> = ({ jobs, searchTerm, onTr
               setSelectedPortal('all');
               setSelectedLocation('all');
               setMinScoreFilter(0);
+              setOnlyOutreachReady(false);
               setFilterQuery('');
             }}
           >

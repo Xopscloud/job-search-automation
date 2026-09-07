@@ -42,6 +42,7 @@ const AVAILABLE_SOURCES = [
   { id: 'infopark', name: 'Infopark Kochi' },
   { id: 'technopark', name: 'Technopark Trivandrum' },
   { id: 'google_jobs', name: 'Google Jobs Search' },
+  { id: 'bayt', name: 'Bayt (Middle East / UAE / Gulf)' },
 ];
 
 export const SearchHeader: React.FC<SearchHeaderProps> = ({
@@ -282,7 +283,27 @@ export const SearchHeader: React.FC<SearchHeaderProps> = ({
           </div>
 
           <div style={{ marginTop: '14px' }}>
-            <span className="form-label">Active Job Portals to Scrape:</span>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+              <span className="form-label" style={{ marginBottom: 0 }}>Active Job Portals to Scrape ({config.sources.length}/{AVAILABLE_SOURCES.length}):</span>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  type="button"
+                  className="location-clear-btn"
+                  style={{ fontSize: '0.74rem', padding: '2px 8px' }}
+                  onClick={() => onChangeConfig({ ...config, sources: AVAILABLE_SOURCES.map((s) => s.id) })}
+                >
+                  ✓ Select All ({AVAILABLE_SOURCES.length})
+                </button>
+                <button
+                  type="button"
+                  className="location-clear-btn"
+                  style={{ fontSize: '0.74rem', padding: '2px 8px' }}
+                  onClick={() => onChangeConfig({ ...config, sources: [] })}
+                >
+                  ✕ Clear All
+                </button>
+              </div>
+            </div>
             <div className="sources-checkbox-grid">
               {AVAILABLE_SOURCES.map((source) => {
                 const isChecked = config.sources.includes(source.id);

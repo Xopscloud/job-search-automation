@@ -16,7 +16,21 @@ export async function POST(request: Request) {
       results_per_site = 25,
       recipient_email = 'johnsonthomas.contact@gmail.com',
       webhook_url = process.env.N8N_WEBHOOK_URL || 'https://n8n.johnsonthomas.co.in/webhook/7d7ac056-7ec6-468d-9ff0-fd08f99cad4b',
-      sources = ['infopark', 'technopark', 'linkedin', 'indeed', 'naukri', 'ats'],
+      sources = [
+        'linkedin',
+        'indeed',
+        'naukri',
+        'glassdoor',
+        'zip_recruiter',
+        'google_jobs',
+        'ats',
+        'infopark',
+        'technopark',
+        'remoteok',
+        'weworkremotely',
+        'jobicy',
+        'bayt',
+      ],
     } = body;
 
     const logs: WorkflowLog[] = [];
@@ -155,8 +169,22 @@ export async function POST(request: Request) {
           body: JSON.stringify({
             search_term,
             location,
-            results_per_site: results_per_site || 20,
-            sources: sources.length ? sources : ['infopark', 'technopark', 'linkedin'],
+            results_per_site: results_per_site || 25,
+            sources: sources.length ? sources : [
+              'linkedin',
+              'indeed',
+              'naukri',
+              'glassdoor',
+              'zip_recruiter',
+              'google_jobs',
+              'ats',
+              'infopark',
+              'technopark',
+              'remoteok',
+              'weworkremotely',
+              'jobicy',
+              'bayt',
+            ],
           }),
           signal: scraperController.signal,
         });
@@ -278,6 +306,15 @@ function extractJobsFromN8n(data: any): JobPost[] {
         match_score: typeof j.match_score === 'number' ? j.match_score : parseInt(j.match_score) || 75,
         match_summary: String(j.match_summary || 'Evaluated via automated scoring pipeline.'),
         status: 'New',
+        email_draft: j.email_draft
+          ? {
+              subject: String(j.email_draft.subject || ''),
+              body: String(j.email_draft.body || ''),
+              status: j.email_draft.status || 'drafted',
+              sent_at: j.email_draft.sent_at,
+              error: j.email_draft.error,
+            }
+          : undefined,
       };
     })
     .filter((j) => Boolean(j.title && j.company));

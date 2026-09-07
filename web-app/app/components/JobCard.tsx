@@ -1,14 +1,19 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import {
   BuildingIcon,
   PinIcon,
   MailIcon,
   PhoneIcon,
   ExternalLinkIcon,
+  SparklesIcon,
+  ChevronDownIcon,
+  ChevronUpIcon,
+  CheckIcon,
 } from './Icons';
 import { JobPost } from '../types';
+import { recordJobApplication, formatDate, formatFutureDate } from '../applications/trackerStorage';
 
 interface JobCardProps {
   job: JobPost;
@@ -22,12 +27,121 @@ export const JobCard: React.FC<JobCardProps> = ({ job }) => {
   const circumference = 2 * Math.PI * 20;
   const strokeOffset = circumference - (score / 100) * circumference;
 
+  // Default personalized email generator tailored to DevOps & candidate profile
+  const generateDefaultSubject = (j: JobPost) => {
+    return `Application: ${j.title} - Johnson Thomas | DevOps & Cloud Engineer`;
+  };
+
+  const generateDefaultBody = (j: JobPost) => {
+    const recruiterGreeting = j.recruiter_name ? `Dear ${j.recruiter_name},` : 'Dear Hiring Team,';
+    const skillsMention =
+      j.required_skills && j.required_skills.length > 0
+        ? `particularly with ${j.required_skills.slice(0, 4).join(', ')}`
+        : 'specifically in CI/CD automation, Kubernetes, Docker, Terraform, and cloud infrastructure';
+
+    return `${recruiterGreeting}
+
+I hope this email finds you well.
+
+I came across the ${j.title} opening at ${j.company} and wanted to reach out directly to express my enthusiastic interest. With 3+ years of hands-on experience as a DevOps & Cloud Engineer, my technical background ${skillsMention} aligns directly with your engineering requirements.
+
+Key highlights of my background include:
+• Designing and maintaining automated CI/CD pipelines that streamline deployments and reduce manual intervention.
+• Managing containerized microservices on Kubernetes (EKS/GKE) and Docker with Infrastructure-as-Code via Terraform.
+• Optimizing cloud system reliability, proactive telemetry monitoring, and DevSecOps compliance.
+
+I have attached my comprehensive DevOps resume (Johnson_Thomas_DevOps_Resume.pdf) for your review.
+
+I would welcome the opportunity for a brief 10-minute conversation to introduce myself and discuss how my expertise can accelerate ${j.company}'s infrastructure goals. I have also submitted my formal application through your portal.
+
+Thank you very much for your time and consideration.
+
+Best regards,
+Johnson Thomas
+DevOps & Cloud Engineer
+johnsonthomas.devops@gmail.com`;
+  };
+
+  // Outreach draft state
+  const [showOutreachDrawer, setShowOutreachDrawer] = useState<boolean>(false);
+  const [emailSubject, setEmailSubject] = useState<string>(
+    job.email_draft?.subject || generateDefaultSubject(job)
+  );
+  const [emailBody, setEmailBody] = useState<string>(
+    job.email_draft?.body || generateDefaultBody(job)
+  );
+  const [isSending, setIsSending] = useState<boolean>(false);
+  const [sendSuccess, setSendSuccess] = useState<boolean>(job.email_draft?.status === 'sent');
+  const [sentAt, setSentAt] = useState<string | null>(job.email_draft?.sent_at || null);
+  const [sendError, setSendError] = useState<string | null>(job.email_draft?.error || null);
+  const [copied, setCopied] = useState<boolean>(false);
+
+  const handleSendViaGmail = async () => {
+    if (!job.recruiter_email || isSending) return;
+
+    setIsSending(true);
+    setSendError(null);
+
+    try {
+      const res = await fetch('/api/email/send', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          to: job.recruiter_email,
+          subject: emailSubject,
+          body: emailBody,
+          recruiter_name: job.recruiter_name,
+          company: job.company,
+          job_title: job.title,
+          job_id: job.job_id,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (res.ok && data.success) {
+        setSendSuccess(true);
+        setSentAt(data.sent_at || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+
+        // Automatically log into tracking sheet
+        recordJobApplication({
+          company: job.company,
+          role: job.title,
+          applied_on: formatDate(new Date()),
+          follow_up_date: formatFutureDate(5),
+          status: 'Pending',
+          source: job.source_website,
+          salary_aed: job.salary || '',
+          applied_through: 'mail',
+          contact_email: job.recruiter_email || '',
+          notes: 'Outreach email dispatched via Gmail',
+          job_id: job.job_id,
+        });
+      } else {
+        setSendError(data.error || 'Failed to dispatch email via n8n webhook.');
+      }
+    } catch (err: any) {
+      setSendError(err?.message || 'Network error while communicating with email dispatch service.');
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  const handleCopyPitch = () => {
+    navigator.clipboard.writeText(`Subject: ${emailSubject}\n\n${emailBody}`);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleResetDraft = () => {
+    setEmailSubject(generateDefaultSubject(job));
+    setEmailBody(generateDefaultBody(job));
+  };
+
   const mailtoUrl = job.recruiter_email
-    ? `mailto:${job.recruiter_email}?subject=${encodeURIComponent(
-        `Application: ${job.title} - Candidate Profile`
-      )}&body=${encodeURIComponent(
-        `Dear ${job.recruiter_name || 'Hiring Team'},\n\nI am writing to express my strong interest in the ${job.title} role at ${job.company}.\n\nWith hands-on experience in ${job.required_skills?.slice(0, 3).join(', ') || 'modern software engineering'}, I am eager to contribute to your team.\n\nLooking forward to hearing from you.\n\nBest regards,`
-      )}`
+    ? `mailto:${job.recruiter_email}?subject=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(emailBody)}`
     : null;
 
   return (
@@ -140,28 +254,196 @@ export const JobCard: React.FC<JobCardProps> = ({ job }) => {
           </div>
         )}
 
-        {/* Recruiter Contact Information Drawer */}
+        {/* Recruiter Contact & Outreach Strip */}
         {job.recruiter_email && (
           <div className="recruiter-box">
-            <div>
-              <span style={{ fontWeight: 700 }}>Recruiter:</span>{' '}
-              {job.recruiter_name || 'Hiring Team'} &bull;{' '}
-              <a
-                href={mailtoUrl!}
-                className="recruiter-email-link"
-                title="Click to draft direct application email"
-              >
-                {job.recruiter_email}
-              </a>
-              {job.recruiter_phone && (
-                <span style={{ display: 'block', fontSize: '0.72rem', color: '#166534', marginTop: '2px' }}>
-                  📞 {job.recruiter_phone}
+            <div style={{ flex: 1, minWidth: '180px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                <span style={{ fontWeight: 700, color: '#166534' }}>Recruiter:</span>
+                <span style={{ fontWeight: 600, color: '#0f172a' }}>{job.recruiter_name || 'Hiring Team'}</span>
+                <span style={{ color: '#94a3b8' }}>&bull;</span>
+                <span style={{ color: '#166534', fontWeight: 600 }}>{job.recruiter_email}</span>
+                {job.recruiter_phone && (
+                  <span style={{ color: '#166534', fontSize: '0.75rem' }}>📞 {job.recruiter_phone}</span>
+                )}
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+              {sendSuccess ? (
+                <span className="outreach-badge-sent">
+                  <CheckIcon size={13} color="#059669" />
+                  <span>Sent {sentAt || 'via Gmail'}</span>
+                </span>
+              ) : (
+                <span className="outreach-badge-ready">
+                  <SparklesIcon size={13} color="#1d4ed8" />
+                  <span>Outreach Ready</span>
                 </span>
               )}
+
+              <button
+                type="button"
+                className="btn-outreach-toggle"
+                onClick={() => setShowOutreachDrawer((prev) => !prev)}
+                title="Review and customize the cold outreach draft"
+              >
+                <span>{showOutreachDrawer ? 'Close Draft' : sendSuccess ? 'View Email' : 'Review Draft'}</span>
+                {showOutreachDrawer ? <ChevronUpIcon size={13} /> : <ChevronDownIcon size={13} />}
+              </button>
             </div>
-            <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#166534' }}>
-              HR Contact
-            </span>
+          </div>
+        )}
+
+        {/* Recruiter.so Style Personalized Cold Email Drawer */}
+        {job.recruiter_email && showOutreachDrawer && (
+          <div className="outreach-drawer" id={`outreach-drawer-${job.job_id}`}>
+            <div className="outreach-drawer-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div className="outreach-ai-icon">
+                  <SparklesIcon size={15} color="#ffffff" />
+                </div>
+                <div>
+                  <h4 className="outreach-drawer-title">
+                    Personalized Recruiter Cold Email
+                  </h4>
+                  <p className="outreach-drawer-subtitle">
+                    Sending to <strong>{job.recruiter_name || 'Hiring Team'}</strong> ({job.recruiter_email}) from <strong>johnsonthomas.devops@gmail.com</strong>
+                  </p>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '6px' }}>
+                <button
+                  type="button"
+                  onClick={handleCopyPitch}
+                  className="outreach-btn-subtle"
+                  title="Copy pitch to clipboard"
+                >
+                  {copied ? '✓ Copied' : 'Copy'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleResetDraft}
+                  className="outreach-btn-subtle"
+                  title="Reset to default template"
+                >
+                  Reset
+                </button>
+              </div>
+            </div>
+
+            {/* Resume Auto-Attachment Indicator */}
+            <div
+              style={{
+                background: '#f8fafc',
+                border: '1px solid #e2e8f0',
+                borderRadius: 'var(--radius-sm)',
+                padding: '6px 10px',
+                marginBottom: '10px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                fontSize: '0.78rem',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span>📎</span>
+                <span>Auto-Attached: <strong>Johnson_Thomas_DevOps_Resume.pdf</strong></span>
+                <span style={{ color: '#059669', fontWeight: 700 }}>✓ Attached</span>
+              </div>
+              <a
+                href="/Johnson_Thomas_DevOps_Resume.pdf"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ color: 'var(--primary)', fontWeight: 600, textDecoration: 'none' }}
+              >
+                Preview ↗
+              </a>
+            </div>
+
+            {/* Editable Subject */}
+            <div className="outreach-field-group">
+              <label className="outreach-label">
+                Subject Line:
+              </label>
+              <input
+                type="text"
+                className="outreach-input"
+                value={emailSubject}
+                onChange={(e) => setEmailSubject(e.target.value)}
+                placeholder="Subject of application..."
+              />
+            </div>
+
+            {/* Editable Body */}
+            <div className="outreach-field-group">
+              <label className="outreach-label">
+                Message Body (Personalized to {job.company} &amp; DevOps fit):
+              </label>
+              <textarea
+                rows={11}
+                className="outreach-textarea"
+                value={emailBody}
+                onChange={(e) => setEmailBody(e.target.value)}
+                placeholder="Write your message here..."
+              />
+            </div>
+
+            {/* Send Feedback Alerts */}
+            {sendSuccess && (
+              <div className="outreach-alert-success">
+                <CheckIcon size={16} color="#047857" />
+                <span>
+                  <strong>Dispatched successfully!</strong> Sent directly from your Gmail account (johnsonthomas.devops@gmail.com) via n8n at {sentAt || 'now'}.
+                </span>
+              </div>
+            )}
+
+            {sendError && (
+              <div className="outreach-alert-error">
+                <span>⚠️ {sendError}</span>
+              </div>
+            )}
+
+            {/* Dispatch Action Toolbar */}
+            <div className="outreach-actions-bar">
+              <button
+                type="button"
+                className={`btn-send-gmail ${isSending ? 'sending' : ''} ${sendSuccess ? 'sent' : ''}`}
+                onClick={handleSendViaGmail}
+                disabled={isSending || !emailSubject.trim() || !emailBody.trim()}
+                id={`btn-send-gmail-${job.job_id}`}
+              >
+                {isSending ? (
+                  <>
+                    <span className="spinner-dots" />
+                    <span>Sending via Gmail...</span>
+                  </>
+                ) : sendSuccess ? (
+                  <>
+                    <CheckIcon size={16} color="#ffffff" />
+                    <span>Sent via Gmail (Send Again)</span>
+                  </>
+                ) : (
+                  <>
+                    <MailIcon size={16} color="#ffffff" />
+                    <span>🚀 Send via Gmail</span>
+                  </>
+                )}
+              </button>
+
+              {mailtoUrl && (
+                <a
+                  href={mailtoUrl}
+                  className="btn-mailto-fallback"
+                  title="Open locally in your default email client"
+                >
+                  <span>Open in Mail App</span>
+                  <ExternalLinkIcon size={13} />
+                </a>
+              )}
+            </div>
           </div>
         )}
       </div>
@@ -174,21 +456,37 @@ export const JobCard: React.FC<JobCardProps> = ({ job }) => {
           rel="noopener noreferrer"
           className="btn-apply-primary"
           id={`apply-link-${job.job_id}`}
+          onClick={() => {
+            recordJobApplication({
+              company: job.company,
+              role: job.title,
+              applied_on: formatDate(new Date()),
+              follow_up_date: formatFutureDate(5),
+              status: 'Applied',
+              source: job.source_website,
+              salary_aed: job.salary || '',
+              applied_through: 'site',
+              contact_email: job.recruiter_email || '',
+              notes: 'Applied via external portal link',
+              job_id: job.job_id,
+            });
+          }}
         >
           <span>Apply on Portal</span>
           <ExternalLinkIcon size={14} />
         </a>
 
-        {mailtoUrl && (
-          <a
-            href={mailtoUrl}
-            className="btn-email-hr"
-            title="Draft email directly to recruiter"
+        {job.recruiter_email && (
+          <button
+            type="button"
+            className={`btn-email-hr ${sendSuccess ? 'sent-active' : ''}`}
+            onClick={() => setShowOutreachDrawer((prev) => !prev)}
+            title="Review & Send Cold Email via Gmail"
             id={`email-hr-${job.job_id}`}
           >
             <MailIcon size={14} />
-            <span>Email HR</span>
-          </a>
+            <span>{sendSuccess ? '✓ Email Sent' : 'Review & Send Email'}</span>
+          </button>
         )}
       </div>
     </div>

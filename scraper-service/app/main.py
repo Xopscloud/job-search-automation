@@ -15,7 +15,11 @@ from app.models import (
 )
 from app.utils.deduplicator import deduplicate_jobs
 from app.utils.excel_generator import generate_excel_bytes
-from app.scrapers.jobspy_scraper import scrape_via_jobspy
+from app.scrapers.jobspy_scraper import (
+    scrape_via_jobspy,
+    scrape_single_jobspy_site,
+    scrape_naukri,
+)
 from app.scrapers.infopark_scraper import scrape_infopark
 from app.scrapers.technopark_scraper import scrape_technopark
 from app.scrapers.google_jobs_scraper import scrape_google_jobs_ats
@@ -47,7 +51,23 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-thread_pool = ThreadPoolExecutor(max_workers=10)
+thread_pool = ThreadPoolExecutor(max_workers=25)
+
+ALL_SUPPORTED_SOURCES = [
+    "linkedin",
+    "indeed",
+    "naukri",
+    "glassdoor",
+    "zip_recruiter",
+    "google_jobs",
+    "ats",
+    "infopark",
+    "technopark",
+    "remoteok",
+    "weworkremotely",
+    "jobicy",
+    "bayt",
+]
 
 @app.get("/health")
 async def health_check():
@@ -60,34 +80,130 @@ async def health_check():
 @app.post("/api/scrape/all", response_model=ScrapeResponse)
 async def scrape_all_sources(request: ScrapeRequest):
     """
-    Unified endpoint that concurrently queries all specified job sources,
-    aggregates results, and removes duplicate postings.
+    Unified endpoint that concurrently queries ALL specified job sources.
+    Each portal is executed in its own isolated task with its own results quota,
+    ensuring that one site's quota or rate-limit never starves or cancels other sites.
     """
-    logger.info(f"Received scrape request: Query='{request.search_term}', Location='{request.location}', Sources={request.sources}")
+    # Normalize requested sources; expand "all" or empty to all supported portals
+    raw_sources = [s.strip().lower() for s in (request.sources or [])]
+    if not raw_sources or any(s in ["all", "all_sites", "*", "all_sources"] for s in raw_sources):
+        active_sources = ALL_SUPPORTED_SOURCES.copy()
+    else:
+        active_sources = raw_sources
+
+    logger.info(f"Received scrape request: Query='{request.search_term}', Location='{request.location}', Active Sources ({len(active_sources)})={active_sources}")
     loop = asyncio.get_running_loop()
 
     tasks = []
     task_source_names = []
     errors: Dict[str, str] = {}
+    hours_old = request.hours_old or 72
 
-    # 1. JobSpy Sources (LinkedIn, Indeed, Naukri, Glassdoor)
-    jobspy_sources = [s for s in request.sources if s.lower() in ["linkedin", "indeed", "naukri", "glassdoor", "zip_recruiter"]]
-    if jobspy_sources:
-        task_source_names.append("jobspy")
+    # 1. LinkedIn (JobSpy)
+    if "linkedin" in active_sources:
+        task_source_names.append("linkedin")
         tasks.append(
             loop.run_in_executor(
                 thread_pool,
-                scrape_via_jobspy,
+                scrape_single_jobspy_site,
+                "linkedin",
                 request.search_term,
                 request.location,
                 request.results_per_site,
-                jobspy_sources,
-                request.hours_old or 72
+                hours_old
             )
         )
 
-    # 2. Infopark Kochi
-    if "infopark" in [s.lower() for s in request.sources]:
+    # 2. Indeed (JobSpy)
+    if "indeed" in active_sources:
+        task_source_names.append("indeed")
+        tasks.append(
+            loop.run_in_executor(
+                thread_pool,
+                scrape_single_jobspy_site,
+                "indeed",
+                request.search_term,
+                request.location,
+                request.results_per_site,
+                hours_old
+            )
+        )
+
+    # 3. Naukri (JobSpy with Fallback)
+    if "naukri" in active_sources:
+        task_source_names.append("naukri")
+        tasks.append(
+            loop.run_in_executor(
+                thread_pool,
+                scrape_naukri,
+                request.search_term,
+                request.location,
+                request.results_per_site
+            )
+        )
+
+    # 4. Glassdoor (JobSpy)
+    if "glassdoor" in active_sources:
+        task_source_names.append("glassdoor")
+        tasks.append(
+            loop.run_in_executor(
+                thread_pool,
+                scrape_single_jobspy_site,
+                "glassdoor",
+                request.search_term,
+                request.location,
+                request.results_per_site,
+                hours_old
+            )
+        )
+
+    # 5. ZipRecruiter (JobSpy)
+    if any(s in active_sources for s in ["zip_recruiter", "ziprecruiter"]):
+        task_source_names.append("zip_recruiter")
+        tasks.append(
+            loop.run_in_executor(
+                thread_pool,
+                scrape_single_jobspy_site,
+                "zip_recruiter",
+                request.search_term,
+                request.location,
+                request.results_per_site,
+                hours_old
+            )
+        )
+
+    # 6. Google Jobs Search (JobSpy)
+    if any(s in active_sources for s in ["google_jobs", "google"]):
+        task_source_names.append("google_jobs")
+        tasks.append(
+            loop.run_in_executor(
+                thread_pool,
+                scrape_single_jobspy_site,
+                "google",
+                request.search_term,
+                request.location,
+                request.results_per_site,
+                hours_old
+            )
+        )
+
+    # 7. Bayt (Middle East / Gulf)
+    if "bayt" in active_sources:
+        task_source_names.append("bayt")
+        tasks.append(
+            loop.run_in_executor(
+                thread_pool,
+                scrape_single_jobspy_site,
+                "bayt",
+                request.search_term,
+                request.location,
+                request.results_per_site,
+                hours_old
+            )
+        )
+
+    # 8. Infopark Kochi
+    if "infopark" in active_sources:
         task_source_names.append("infopark")
         tasks.append(
             loop.run_in_executor(
@@ -98,8 +214,8 @@ async def scrape_all_sources(request: ScrapeRequest):
             )
         )
 
-    # 3. Technopark Trivandrum
-    if "technopark" in [s.lower() for s in request.sources]:
+    # 9. Technopark Trivandrum
+    if "technopark" in active_sources:
         task_source_names.append("technopark")
         tasks.append(
             loop.run_in_executor(
@@ -110,9 +226,9 @@ async def scrape_all_sources(request: ScrapeRequest):
             )
         )
 
-    # 4. Direct Company ATS Career Portals
-    if any(s.lower() in ["google_jobs", "ats", "career_sites"] for s in request.sources):
-        task_source_names.append("ats_career_sites")
+    # 10. Direct Company ATS Career Portals (Greenhouse, Lever, Workday, Ashby, SmartRecruiters)
+    if any(s in active_sources for s in ["ats", "career_sites", "company_ats"]):
+        task_source_names.append("ats")
         tasks.append(
             loop.run_in_executor(
                 thread_pool,
@@ -123,31 +239,43 @@ async def scrape_all_sources(request: ScrapeRequest):
             )
         )
 
-    # 5. Global Remote DevOps Platforms (RemoteOK, WeWorkRemotely, Jobicy)
-    remote_sources = [s.lower() for s in request.sources if s.lower() in ["remoteok", "weworkremotely", "jobicy", "remote_devops"]]
-    if remote_sources:
-        if "remoteok" in remote_sources and "weworkremotely" in remote_sources and "jobicy" in remote_sources:
-            task_source_names.append("remote_devops_portals")
-            tasks.append(
-                loop.run_in_executor(
-                    thread_pool,
-                    scrape_all_remote_devops,
-                    request.search_term,
-                    request.results_per_site
-                )
+    # 11. RemoteOK
+    if "remoteok" in active_sources or "remote_devops" in active_sources:
+        task_source_names.append("remoteok")
+        tasks.append(
+            loop.run_in_executor(
+                thread_pool,
+                scrape_remoteok,
+                request.search_term,
+                request.results_per_site
             )
-        else:
-            if "remoteok" in remote_sources:
-                task_source_names.append("remoteok")
-                tasks.append(loop.run_in_executor(thread_pool, scrape_remoteok, request.search_term, request.results_per_site))
-            if "weworkremotely" in remote_sources:
-                task_source_names.append("weworkremotely")
-                tasks.append(loop.run_in_executor(thread_pool, scrape_weworkremotely, request.search_term, request.results_per_site))
-            if "jobicy" in remote_sources:
-                task_source_names.append("jobicy")
-                tasks.append(loop.run_in_executor(thread_pool, scrape_jobicy, request.search_term, request.results_per_site))
+        )
 
-    # Run tasks concurrently
+    # 12. WeWorkRemotely
+    if "weworkremotely" in active_sources or "remote_devops" in active_sources:
+        task_source_names.append("weworkremotely")
+        tasks.append(
+            loop.run_in_executor(
+                thread_pool,
+                scrape_weworkremotely,
+                request.search_term,
+                request.results_per_site
+            )
+        )
+
+    # 13. Jobicy
+    if "jobicy" in active_sources or "remote_devops" in active_sources:
+        task_source_names.append("jobicy")
+        tasks.append(
+            loop.run_in_executor(
+                thread_pool,
+                scrape_jobicy,
+                request.search_term,
+                request.results_per_site
+            )
+        )
+
+    # Run ALL tasks concurrently
     raw_results = await asyncio.gather(*tasks, return_exceptions=True)
 
     all_jobs: List[JobPost] = []
@@ -169,10 +297,11 @@ async def scrape_all_sources(request: ScrapeRequest):
         success=True,
         total_found=len(all_jobs),
         new_jobs_count=len(unique_jobs),
-        sources_queried=request.sources,
+        sources_queried=active_sources,
         jobs=unique_jobs,
         errors=errors
     )
+
 
 @app.post("/api/scrape/infopark", response_model=List[JobPost])
 async def scrape_infopark_endpoint(query: str = "", limit: int = 25):

@@ -47,6 +47,7 @@ class ScrapeRequest(BaseModel):
             "infopark",
             "technopark",
             "google_jobs",
+            "bayt",
         ],
         description="List of sources to query across the internet",
     )

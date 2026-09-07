@@ -28,37 +28,64 @@
     },
     {
       "parameters": {
-        "values": {
-          "string": [
+        "httpMethod": "POST",
+        "path": "job-search-trigger",
+        "responseMode": "responseNode",
+        "responseData": "allEntries",
+        "options": {}
+      },
+      "id": "1d8b7470-4e38-4e5a-8b1e-8e80a0a00099",
+      "name": "Webhook Trigger (Web App)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [220, 660],
+      "webhookId": "job-search-trigger"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
             {
+              "id": "f8a00001",
               "name": "search_term",
-              "value": "Full Stack Developer"
+              "value": "={{ $json.body?.search_term || $json.search_term || 'DevOps Engineer' }}",
+              "type": "string"
             },
             {
+              "id": "f8a00002",
               "name": "location",
-              "value": "Kochi, Kerala, India"
+              "value": "={{ $json.body?.location || $json.location || '' }}",
+              "type": "string"
             },
             {
+              "id": "f8a00003",
               "name": "candidate_skills",
-              "value": "Python, FastAPI, React, PostgreSQL, Docker, AWS, REST APIs"
+              "value": "={{ $json.body?.candidate_skills || $json.candidate_skills || 'AWS, Azure, GCP, Kubernetes, Docker, Terraform, Ansible, CI/CD, Linux, Python, Bash, Helm, Prometheus, Grafana, DevSecOps' }}",
+              "type": "string"
             },
             {
+              "id": "f8a00004",
               "name": "recipient_email",
-              "value": "your_email@example.com"
-            }
-          ],
-          "number": [
+              "value": "={{ $json.body?.recipient_email || $json.recipient_email || 'your_email@example.com' }}",
+              "type": "string"
+            },
             {
+              "id": "f8a00005",
               "name": "candidate_experience_years",
-              "value": 3
+              "value": "={{ $json.body?.candidate_experience_years ?? $json.candidate_experience_years ?? 3 }}",
+              "type": "number"
             },
             {
+              "id": "f8a00006",
               "name": "min_alert_score",
-              "value": 80
+              "value": "={{ $json.body?.min_alert_score ?? $json.min_alert_score ?? 80 }}",
+              "type": "number"
             },
             {
+              "id": "f8a00007",
               "name": "results_per_site",
-              "value": 25
+              "value": "={{ $json.body?.results_per_site ?? $json.results_per_site ?? 25 }}",
+              "type": "number"
             }
           ]
         },
@@ -67,7 +94,7 @@
       "id": "1d8b7470-4e38-4e5a-8b1e-8e80a0a00003",
       "name": "User Search Profile & Config",
       "type": "n8n-nodes-base.set",
-      "typeVersion": 3.2,
+      "typeVersion": 3.4,
       "position": [460, 380]
     },
     {
@@ -76,7 +103,7 @@
         "url": "http://scraper-service:8000/api/scrape/all",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"search_term\": \"{{ $json.search_term }}\",\n  \"location\": \"{{ $json.location }}\",\n  \"results_per_site\": {{ $json.results_per_site }},\n  \"sources\": [\"linkedin\", \"indeed\", \"naukri\", \"infopark\", \"technopark\", \"google_jobs\"],\n  \"hours_old\": 72\n}",
+        "jsonBody": "={{ JSON.stringify({\n  \"search_term\": $json.search_term || \"DevOps Engineer\",\n  \"location\": $json.location || \"\",\n  \"results_per_site\": $json.results_per_site || 25,\n  \"sources\": [\"linkedin\", \"indeed\", \"naukri\", \"glassdoor\", \"zip_recruiter\", \"google_jobs\", \"ats\", \"infopark\", \"technopark\", \"remoteok\", \"weworkremotely\", \"jobicy\", \"bayt\"],\n  \"hours_old\": 72\n}) }}",
         "options": {
           "timeout": 120000
         }
@@ -89,7 +116,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Unpack jobs list from scraper response\nconst response = $input.first().json;\nconst config = $('User Search Profile & Config').first().json;\nconst jobs = response.jobs || [];\n\nif (!jobs.length) {\n  return [];\n}\n\nreturn jobs.map(job => ({\n  json: {\n    ...job,\n    candidate_skills: config.candidate_skills,\n    candidate_exp: config.candidate_experience_years,\n    recipient_email: config.recipient_email,\n    min_alert_score: config.min_alert_score\n  }\n}));"
+        "jsCode": "// Unpack jobs list from scraper response and construct safe AI payload\nconst response = $input.first().json;\nconst config = $('User Search Profile & Config').first().json;\nconst jobs = response.jobs || [];\n\nif (!jobs.length) {\n  return [];\n}\n\nreturn jobs.map(job => ({\n  json: {\n    ...job,\n    candidate_skills: config.candidate_skills,\n    candidate_exp: config.candidate_experience_years,\n    recipient_email: config.recipient_email,\n    min_alert_score: config.min_alert_score,\n    groq_payload: {\n      model: \"openai/gpt-oss-20b\",\n      response_format: { type: \"json_object\" },\n      messages: [\n        {\n          role: \"system\",\n          content: \"You are an expert technical recruiter and career evaluator. Analyze the job posting against candidate profile. Extract recruiter contact info if found, evaluate match score (0-100), required skills, and summary. Return strict JSON with keys: match_score (integer 0-100), match_summary (string), required_skills (array of strings), missing_skills (array of strings), experience_required (string), recruiter_name (string or null), recruiter_email (string or null), recruiter_phone (string or null).\"\n        },\n        {\n          role: \"user\",\n          content: `Candidate Skills: ${config.candidate_skills || ''}\\nCandidate Experience: ${config.candidate_experience_years || ''} years\\n\\nJob Title: ${job.title || ''}\\nCompany: ${job.company || ''}\\nLocation: ${job.location || ''}\\nJob Description:\\n${(job.description || '').slice(0, 1500)}`\n        }\n      ]\n    }\n  }\n}));"
       },
       "id": "1d8b7470-4e38-4e5a-8b1e-8e80a0a00005",
       "name": "Unpack Jobs & Attach Profile",
@@ -101,20 +128,19 @@
       "parameters": {
         "method": "POST",
         "url": "https://api.groq.com/openai/v1/chat/completions",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "authentication": "none",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
               "name": "Authorization",
-              "value": "=Bearer {{ $env.GROQ_API_KEY || $env.OPENAI_API_KEY }}"
+              "value": "={{ 'Bearer ' + ($env.GROQ_API_KEY || '') }}"
             }
           ]
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"model\": \"llama-3.3-70b-versatile\",\n  \"response_format\": {\"type\": \"json_object\"},\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are an expert technical recruiter and career evaluator. Analyze the job posting against candidate profile. Extract recruiter contact info if found, evaluate match score (0-100), required skills, and summary. Return strict JSON with keys: match_score (integer 0-100), match_summary (string), required_skills (array of strings), missing_skills (array of strings), experience_required (string), recruiter_name (string or null), recruiter_email (string or null), recruiter_phone (string or null).\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Candidate Skills: {{ $json.candidate_skills }}\\nCandidate Experience: {{ $json.candidate_exp }} years\\n\\nJob Title: {{ $json.title }}\\nCompany: {{ $json.company }}\\nLocation: {{ $json.location }}\\nJob Description:\\n{{ $json.description }}\"\n    }\n  ]\n}",
+        "jsonBody": "={{ JSON.stringify({\n  \"model\": \"openai/gpt-oss-20b\",\n  \"response_format\": {\"type\": \"json_object\"},\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are an expert technical recruiter and career evaluator. Analyze the job posting against candidate profile. Extract recruiter contact info if found, evaluate match score (0-100), required skills, and summary. Return strict JSON with keys: match_score (integer 0-100), match_summary (string), required_skills (array of strings), missing_skills (array of strings), experience_required (string), recruiter_name (string or null), recruiter_email (string or null), recruiter_phone (string or null).\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Candidate Skills: \" + ($json.candidate_skills || \"\") + \"\\nCandidate Experience: \" + ($json.candidate_exp || \"\") + \" years\\n\\nJob Title: \" + ($json.title || \"\") + \"\\nCompany: \" + ($json.company || \"\") + \"\\nLocation: \" + ($json.location || \"\") + \"\\nJob Description:\\n\" + ($json.description || \"\").slice(0, 1500)\n    }\n  ]\n}) }}",
         "options": {
           "timeout": 30000
         }
@@ -128,7 +154,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Merge AI assessment results with the original job data\nconst items = $input.all();\nconst unpackedItems = $('Unpack Jobs & Attach Profile').all();\n\nconst enriched = [];\n\nfor (let i = 0; i < items.length; i++) {\n  const original = unpackedItems[i] ? unpackedItems[i].json : {};\n  const aiResponse = items[i].json;\n  \n  let aiData = {};\n  try {\n    const rawContent = aiResponse?.choices?.[0]?.message?.content;\n    if (rawContent) {\n      aiData = JSON.parse(rawContent);\n    }\n  } catch (err) {\n    // Fallback if parsing fails\n    aiData = {\n      match_score: 70,\n      match_summary: \"Parsed via heuristic match\",\n      required_skills: original.required_skills || []\n    };\n  }\n\n  enriched.push({\n    json: {\n      ...original,\n      match_score: aiData.match_score ?? (original.match_score || 65),\n      match_summary: aiData.match_summary || original.match_summary || \"Standard profile match\",\n      required_skills: (aiData.required_skills && aiData.required_skills.length) ? aiData.required_skills : original.required_skills,\n      experience: aiData.experience_required || original.experience || \"Not specified\",\n      recruiter_name: aiData.recruiter_name || original.recruiter_name || null,\n      recruiter_email: aiData.recruiter_email || original.recruiter_email || null,\n      recruiter_phone: aiData.recruiter_phone || original.recruiter_phone || null,\n      status: \"New\"\n    }\n  });\n}\n\n// Sort descending by match score\nenriched.sort((a, b) => (b.json.match_score || 0) - (a.json.match_score || 0));\n\nreturn enriched;"
+        "jsCode": "// Merge AI assessment results with the original job data\nconst items = $input.all();\nconst unpackedItems = $('Unpack Jobs & Attach Profile').all();\n\nconst enriched = [];\n\nfor (let i = 0; i < items.length; i++) {\n  const original = unpackedItems[i] ? unpackedItems[i].json : {};\n  const aiResponse = items[i].json;\n  \n  let aiData = {};\n  try {\n    const rawContent = aiResponse?.choices?.[0]?.message?.content;\n    if (rawContent) {\n      aiData = JSON.parse(rawContent);\n    }\n  } catch (err) {\n    // Fallback if parsing fails\n    aiData = {\n      match_score: 70,\n      match_summary: \"Parsed via heuristic match\",\n      required_skills: original.required_skills || []\n    };\n  }\n\n  const recEmail = aiData.recruiter_email || original.recruiter_email || null;\n  const recName = aiData.recruiter_name || original.recruiter_name || null;\n  let draft = null;\n\n  if (recEmail) {\n    const skillsStr = (aiData.required_skills && aiData.required_skills.length)\n      ? aiData.required_skills.slice(0, 4).join(', ')\n      : 'CI/CD, Kubernetes, Terraform, Docker';\n    const greeting = recName ? `Dear ${recName},` : 'Dear Hiring Team,';\n\n    draft = {\n      subject: `Application: ${original.title} - Johnson Thomas | DevOps & Cloud Engineer`,\n      body: `${greeting}\\n\\nI hope this email finds you well.\\n\\nI came across the ${original.title} opening at ${original.company} and wanted to reach out directly to express my enthusiastic interest. With 3+ years of hands-on experience as a DevOps & Cloud Engineer, my technical background specializing in ${skillsStr} aligns directly with your engineering requirements.\\n\\nKey highlights of my background include:\\n• Designing and maintaining automated CI/CD pipelines that streamline deployments and reduce manual intervention.\\n• Managing containerized microservices on Kubernetes (EKS/GKE) and Docker with Infrastructure-as-Code via Terraform.\\n• Optimizing cloud system reliability, proactive telemetry monitoring, and DevSecOps compliance.\\n\\nI would welcome the opportunity for a brief 10-minute conversation to introduce myself and discuss how my expertise can accelerate ${original.company}'s infrastructure goals. I have also submitted my formal application through your portal.\\n\\nThank you very much for your time and consideration.\\n\\nBest regards,\\nJohnson Thomas\\nDevOps & Cloud Engineer\\njohnsonthomas.devops@gmail.com`,\n      status: 'drafted'\n    };\n  }\n\n  enriched.push({\n    json: {\n      ...original,\n      match_score: aiData.match_score ?? (original.match_score || 65),\n      match_summary: aiData.match_summary || original.match_summary || \"Standard profile match\",\n      required_skills: (aiData.required_skills && aiData.required_skills.length) ? aiData.required_skills : original.required_skills,\n      experience: aiData.experience_required || original.experience || \"Not specified\",\n      recruiter_name: recName,\n      recruiter_email: recEmail,\n      recruiter_phone: aiData.recruiter_phone || original.recruiter_phone || null,\n      email_draft: draft,\n      status: \"New\"\n    }\n  });\n}\n\n// Sort descending by match score\nenriched.sort((a, b) => (b.json.match_score || 0) - (a.json.match_score || 0));\n\nreturn enriched;"
       },
       "id": "1d8b7470-4e38-4e5a-8b1e-8e80a0a00007",
       "name": "Merge & Rank Jobs by Score",
@@ -213,7 +239,7 @@
     },
     {
       "parameters": {
-        "fromEmail": "={{ $env.EMAIL_FROM || 'Job Search Automation <noreply@example.com>' }}",
+        "fromEmail": "={{ $json.recipient_email }}",
         "toEmail": "={{ $json.recipient_email }}",
         "subject": "={{ $json.subject }}",
         "html": "={{ $json.html }}",
@@ -226,6 +252,17 @@
       "typeVersion": 2.1,
       "position": [2080, 240],
       "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "respondWith": "allIncomingItems",
+        "options": {}
+      },
+      "id": "1d8b7470-4e38-4e5a-8b1e-8e80a0a00098",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1600, 680]
     }
   ],
   "connections": {
@@ -241,6 +278,17 @@
       ]
     },
     "Manual Test Trigger": {
+      "main": [
+        [
+          {
+            "node": "User Search Profile & Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook Trigger (Web App)": {
       "main": [
         [
           {
@@ -305,6 +353,11 @@
           },
           {
             "node": "Sync to Google Sheets",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Respond to Webhook",
             "type": "main",
             "index": 0
           }

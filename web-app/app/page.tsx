@@ -83,7 +83,21 @@ export default function HomePage() {
     results_per_site: 25,
     recipient_email: 'johnsonthomas.contact@gmail.com',
     webhook_url: 'https://n8n.johnsonthomas.co.in/webhook/7d7ac056-7ec6-468d-9ff0-fd08f99cad4b',
-    sources: ['infopark', 'technopark', 'linkedin', 'indeed', 'naukri', 'ats'],
+    sources: [
+      'linkedin',
+      'indeed',
+      'naukri',
+      'glassdoor',
+      'zip_recruiter',
+      'google_jobs',
+      'ats',
+      'infopark',
+      'technopark',
+      'remoteok',
+      'weworkremotely',
+      'jobicy',
+      'bayt',
+    ],
   });
 
   const [stages, setStages] = useState<WorkflowStage[]>(INITIAL_STAGES);
@@ -97,6 +111,21 @@ export default function HomePage() {
     message: string;
     actionHint?: string;
   } | null>(null);
+
+  // Restore jobs from localStorage if present
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('devopspulse_jobs');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setJobs(parsed);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load cached jobs from localStorage:', err);
+    }
+  }, []);
 
   const triggerAutomation = async () => {
     if (isRunning) return;
@@ -221,6 +250,11 @@ export default function HomePage() {
 
         if (data.jobs && data.jobs.length > 0) {
           setJobs(data.jobs);
+          try {
+            localStorage.setItem('devopspulse_jobs', JSON.stringify(data.jobs));
+          } catch (storageErr) {
+            console.error('Failed to cache jobs to localStorage:', storageErr);
+          }
           setN8nAlert({
             type: 'success',
             title: `Pipeline Finished: Discovered ${data.jobs.length} Verified Jobs!`,
@@ -280,7 +314,26 @@ export default function HomePage() {
         </a>
 
         <ul className="nav-links">
-          <li><a href="#" className="nav-link active">Jobs</a></li>
+          <li><a href="/" className="nav-link active">Jobs</a></li>
+          <li>
+            <a href="/mailing" className="nav-link" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+              <span>Recruiter Outreach</span>
+              {recruiterCount > 0 && (
+                <span style={{
+                  background: '#eff6ff',
+                  color: '#1d4ed8',
+                  border: '1px solid #bfdbfe',
+                  fontSize: '0.68rem',
+                  padding: '1px 6px',
+                  borderRadius: '10px',
+                  fontWeight: 800
+                }}>
+                  {recruiterCount}
+                </span>
+              )}
+            </a>
+          </li>
+          <li><a href="/applications" className="nav-link">Job Status</a></li>
           <li><a href="#pipeline" className="nav-link">Pipeline</a></li>
           <li><a href="#stats" className="nav-link">Analytics</a></li>
           <li><a href="https://n8n.johnsonthomas.co.in" target="_blank" rel="noopener noreferrer" className="nav-link">n8n Cloud</a></li>
