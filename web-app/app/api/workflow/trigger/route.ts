@@ -8,9 +8,9 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     const {
-      search_term = 'Full Stack Developer',
-      location = 'Kochi, Kerala, India',
-      candidate_skills = 'Python, FastAPI, React, PostgreSQL, Docker, AWS',
+      search_term = 'DevOps Engineer',
+      location = 'Remote, India',
+      candidate_skills = 'AWS, Azure, GCP, Kubernetes, Docker, Terraform, Ansible, CI/CD, Linux, Python, Bash, Helm, Prometheus, Grafana, DevSecOps',
       candidate_experience_years = 3,
       min_alert_score = 80,
       results_per_site = 25,

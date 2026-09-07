@@ -19,6 +19,12 @@ from app.scrapers.jobspy_scraper import scrape_via_jobspy
 from app.scrapers.infopark_scraper import scrape_infopark
 from app.scrapers.technopark_scraper import scrape_technopark
 from app.scrapers.google_jobs_scraper import scrape_google_jobs_ats
+from app.scrapers.remote_devops_scraper import (
+    scrape_all_remote_devops,
+    scrape_remoteok,
+    scrape_weworkremotely,
+    scrape_jobicy,
+)
 
 # Configure logging
 logging.basicConfig(
@@ -116,6 +122,30 @@ async def scrape_all_sources(request: ScrapeRequest):
                 request.results_per_site
             )
         )
+
+    # 5. Global Remote DevOps Platforms (RemoteOK, WeWorkRemotely, Jobicy)
+    remote_sources = [s.lower() for s in request.sources if s.lower() in ["remoteok", "weworkremotely", "jobicy", "remote_devops"]]
+    if remote_sources:
+        if "remoteok" in remote_sources and "weworkremotely" in remote_sources and "jobicy" in remote_sources:
+            task_source_names.append("remote_devops_portals")
+            tasks.append(
+                loop.run_in_executor(
+                    thread_pool,
+                    scrape_all_remote_devops,
+                    request.search_term,
+                    request.results_per_site
+                )
+            )
+        else:
+            if "remoteok" in remote_sources:
+                task_source_names.append("remoteok")
+                tasks.append(loop.run_in_executor(thread_pool, scrape_remoteok, request.search_term, request.results_per_site))
+            if "weworkremotely" in remote_sources:
+                task_source_names.append("weworkremotely")
+                tasks.append(loop.run_in_executor(thread_pool, scrape_weworkremotely, request.search_term, request.results_per_site))
+            if "jobicy" in remote_sources:
+                task_source_names.append("jobicy")
+                tasks.append(loop.run_in_executor(thread_pool, scrape_jobicy, request.search_term, request.results_per_site))
 
     # Run tasks concurrently
     raw_results = await asyncio.gather(*tasks, return_exceptions=True)

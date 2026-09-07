@@ -17,19 +17,23 @@ logger = logging.getLogger(__name__)
 DUCKDUCKGO_HTML_URL = "https://html.duckduckgo.com/html/"
 
 def scrape_google_jobs_ats(
-    search_term: str = "Full Stack Developer",
-    location: str = "India",
-    limit: int = 20
+    search_term: str = "DevOps Engineer",
+    location: str = "",
+    limit: int = 25
 ) -> List[JobPost]:
     """
-    Scrapes company career portals and ATS links (Lever, Greenhouse, Workday)
+    Scrapes company career portals and ATS links (Greenhouse, Lever, Workday, Ashby, SmartRecruiters, Workable)
     via search engine dorks without requiring paid API keys.
     """
-    logger.info(f"Querying ATS career portals for: '{search_term}' in '{location}'...")
+    logger.info(f"Querying ATS career portals across the internet for: '{search_term}' (Location: '{location or 'Worldwide'}')...")
     jobs: List[JobPost] = []
 
     # Search queries targeting company ATS platforms directly
-    query = f'"{search_term}" (site:boards.greenhouse.io OR site:jobs.lever.co OR site:myworkdayjobs.com) "{location}"'
+    ats_sites = "site:boards.greenhouse.io OR site:jobs.lever.co OR site:myworkdayjobs.com OR site:ashbyhq.com OR site:jobs.smartrecruiters.com OR site:workable.com"
+    if location and location.strip():
+        query = f'"{search_term}" ({ats_sites}) "{location.strip()}"'
+    else:
+        query = f'"{search_term}" ({ats_sites})'
     
     try:
         data = {
@@ -71,7 +75,7 @@ def scrape_google_jobs_ats(
 
                     # Extract company name from title or URL
                     # e.g., "Software Engineer - Stripe (jobs.lever.co/stripe/...)"
-                    company = "Company via Career Site"
+                    company = "Tech Employer via ATS"
                     if "boards.greenhouse.io/" in job_url:
                         parts = job_url.split("boards.greenhouse.io/")[-1].split("/")
                         company = parts[0].replace("-", " ").title()
@@ -81,14 +85,24 @@ def scrape_google_jobs_ats(
                     elif "myworkdayjobs.com" in job_url:
                         domain_part = urllib.parse.urlparse(job_url).netloc
                         company = domain_part.split(".")[0].replace("-", " ").title()
+                    elif "ashbyhq.com/" in job_url:
+                        parts = job_url.split("ashbyhq.com/")[-1].split("/")
+                        company = parts[0].replace("-", " ").title()
+                    elif "smartrecruiters.com/" in job_url:
+                        parts = job_url.split("smartrecruiters.com/")[-1].split("/")
+                        company = parts[0].replace("-", " ").title()
+                    elif "workable.com/" in job_url:
+                        domain_part = urllib.parse.urlparse(job_url).netloc
+                        company = domain_part.split(".")[0].replace("-", " ").title()
                     elif " - " in full_title:
                         company = full_title.split(" - ")[-1].strip()
 
                     # Clean up job title
                     clean_title = full_title.split(" - ")[0].split(" | ")[0].strip()
 
+                    detected_location = location.strip() if location and location.strip() else "Remote / Disclosed on Portal"
                     email, phone, recruiter = extract_all_contacts(snippet)
-                    job_id = generate_job_id(clean_title, company, location)
+                    job_id = generate_job_id(clean_title, company, detected_location)
 
                     job = JobPost(
                         job_id=job_id,

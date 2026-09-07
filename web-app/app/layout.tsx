@@ -2,9 +2,20 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'AutoJob Pulse | Automated Job Search & Application Tracking System',
-  description: 'Automated multi-portal job aggregator, AI candidate fit evaluator, recruiter contact extractor, and n8n workflow cockpit.',
-  keywords: ['Job Search Automation', 'n8n Workflow', 'Infopark Jobs', 'Technopark Jobs', 'LinkedIn Scraper', 'AI Job Matcher'],
+  title: 'DevOps Pulse | Automated DevOps, SRE & Cloud Job Search Cockpit',
+  description: 'Autonomous multi-portal job aggregator, AI candidate fit evaluator, and recruiter outreach engine dedicated to DevOps Engineers, SREs, DevSecOps, Cloud Engineers, and Solution Architects.',
+  keywords: [
+    'DevOps Engineer',
+    'Site Reliability Engineer',
+    'SRE',
+    'DevSecOps Engineer',
+    'Cloud Engineer',
+    'Solution Architect',
+    'Kubernetes',
+    'Terraform',
+    'AWS DevOps',
+    'n8n Workflow',
+  ],
 };
 
 export default function RootLayout({

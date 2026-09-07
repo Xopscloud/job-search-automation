@@ -21,20 +21,27 @@ interface SearchHeaderProps {
 }
 
 const FEATURED_POSTINGS = [
-  { title: 'UX Researcher', location: 'Bucharest, Romania' },
-  { title: 'Full Stack Developer', location: 'Kochi, Kerala, India' },
-  { title: 'UI/UX Designer', location: 'Remote' },
-  { title: 'AI / LLM Engineer', location: 'Bangalore, India' },
-  { title: 'DevOps Engineer', location: 'Remote' },
+  { title: 'DevOps Engineer', roleTag: 'CI/CD • Kubernetes • Terraform' },
+  { title: 'Site Reliability Engineer (SRE)', roleTag: 'Observability • Cloud • Linux' },
+  { title: 'DevSecOps Engineer', roleTag: 'Security • Compliance • CI/CD' },
+  { title: 'Cloud Engineer', roleTag: 'AWS • Azure • GCP Infrastructure' },
+  { title: 'Solution Architect', roleTag: 'Enterprise Cloud Architecture' },
+  { title: 'Platform Engineer', roleTag: 'Internal Developer Platforms' },
 ];
 
 const AVAILABLE_SOURCES = [
-  { id: 'infopark', name: 'Infopark Kochi' },
-  { id: 'technopark', name: 'Technopark Trivandrum' },
   { id: 'linkedin', name: 'LinkedIn' },
   { id: 'indeed', name: 'Indeed' },
   { id: 'naukri', name: 'Naukri' },
-  { id: 'ats', name: 'Company ATS' },
+  { id: 'glassdoor', name: 'Glassdoor' },
+  { id: 'zip_recruiter', name: 'ZipRecruiter' },
+  { id: 'remoteok', name: 'RemoteOK' },
+  { id: 'weworkremotely', name: 'WeWorkRemotely' },
+  { id: 'jobicy', name: 'Jobicy (Remote Tech)' },
+  { id: 'ats', name: 'Company ATS (Greenhouse, Lever, Ashby, Workday)' },
+  { id: 'infopark', name: 'Infopark Kochi' },
+  { id: 'technopark', name: 'Technopark Trivandrum' },
+  { id: 'google_jobs', name: 'Google Jobs Search' },
 ];
 
 export const SearchHeader: React.FC<SearchHeaderProps> = ({
@@ -65,15 +72,10 @@ export const SearchHeader: React.FC<SearchHeaderProps> = ({
     onChangeConfig({ ...config, search_term: e.target.value });
   };
 
-  const handleLocationChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    onChangeConfig({ ...config, location: e.target.value });
-  };
-
-  const handlePostingClick = (item: { title: string; location: string }) => {
+  const handlePostingClick = (item: { title: string; roleTag: string }) => {
     onChangeConfig({
       ...config,
       search_term: item.title,
-      location: item.location,
     });
   };
 
@@ -99,10 +101,10 @@ export const SearchHeader: React.FC<SearchHeaderProps> = ({
         <div className="hero-content">
           <h2 className="hero-headline">
             Find your dream <br />
-            career on autopilot
+            DevOps &amp; Cloud role
           </h2>
           <p className="hero-subtitle">
-            Autonomous multi-portal job aggregator, AI candidate fit evaluator, and recruiter outreach engine connected with n8n.
+            Autonomous multi-portal job aggregator, AI match evaluator, and recruiter outreach engine dedicated to DevOps, SRE, DevSecOps, and Cloud professionals.
           </p>
         </div>
 
@@ -126,8 +128,8 @@ export const SearchHeader: React.FC<SearchHeaderProps> = ({
       {/* Floating Capsule Search Bar */}
       <div className="search-capsule-card">
         <form onSubmit={handleSubmit} className="search-capsule-form">
-          {/* Job Title Input */}
-          <div className="capsule-input-group">
+          {/* Job Title / Role Search Input (Global Across All Sources) */}
+          <div className="capsule-input-group" style={{ flex: 1 }}>
             <span className="capsule-icon">
               <SearchIcon size={20} color="var(--primary)" />
             </span>
@@ -135,27 +137,9 @@ export const SearchHeader: React.FC<SearchHeaderProps> = ({
               id="job-title-search-input"
               type="text"
               className="capsule-input"
-              placeholder="Job Title or Keywords"
+              placeholder="Search DevOps roles across the internet (e.g., DevOps Engineer, SRE, DevSecOps, Cloud Engineer)..."
               value={config.search_term}
               onChange={handleTitleChange}
-              disabled={isLoading}
-            />
-          </div>
-
-          <div className="capsule-divider" />
-
-          {/* Location Input */}
-          <div className="capsule-input-group location-group">
-            <span className="capsule-icon">
-              <PinIcon size={18} color="var(--primary)" />
-            </span>
-            <input
-              id="job-location-input"
-              type="text"
-              className="capsule-input"
-              placeholder="Location (e.g., Kochi, Bucharest, Remote)"
-              value={config.location}
-              onChange={handleLocationChange}
               disabled={isLoading}
             />
           </div>
@@ -169,7 +153,7 @@ export const SearchHeader: React.FC<SearchHeaderProps> = ({
               title="Workflow Config"
             >
               <SettingsIcon size={16} />
-              <span>Config</span>
+              <span>Sources ({config.sources.length})</span>
               {showSettings ? <ChevronUpIcon size={12} /> : <ChevronDownIcon size={12} />}
             </button>
 
@@ -198,7 +182,7 @@ export const SearchHeader: React.FC<SearchHeaderProps> = ({
       {/* Latest Postings Carousel (Matching reference design) */}
       <div className="latest-postings-section">
         <div className="postings-header-row">
-          <span className="postings-label">Latest Postings:</span>
+          <span className="postings-label">Target DevOps Roles:</span>
         </div>
         <div className="postings-cards-row">
           {FEATURED_POSTINGS.map((item) => {
@@ -213,7 +197,7 @@ export const SearchHeader: React.FC<SearchHeaderProps> = ({
                 disabled={isLoading}
               >
                 <span className="posting-title">{item.title}</span>
-                <span className="posting-location">{item.location}</span>
+                <span className="posting-location">{item.roleTag}</span>
               </button>
             );
           })}
@@ -238,7 +222,7 @@ export const SearchHeader: React.FC<SearchHeaderProps> = ({
                 className="form-input"
                 value={config.candidate_skills}
                 onChange={(e) => onChangeConfig({ ...config, candidate_skills: e.target.value })}
-                placeholder="Python, FastAPI, React, PostgreSQL, Docker..."
+                placeholder="AWS, Azure, Kubernetes, Docker, Terraform, CI/CD, Linux, Python, Helm..."
               />
             </div>
 

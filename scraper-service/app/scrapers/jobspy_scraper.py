@@ -29,30 +29,33 @@ def map_site_names(sources: List[str]) -> List[str]:
 
 def scrape_via_jobspy(
     search_term: str,
-    location: str = "India",
+    location: str = "",
     results_per_site: int = 20,
     sources: Optional[List[str]] = None,
     hours_old: int = 72
 ) -> List[JobPost]:
     """
-    Scrapes job listings across LinkedIn, Indeed, Naukri, Glassdoor, etc.
+    Scrapes job listings across LinkedIn, Indeed, Naukri, Glassdoor, ZipRecruiter, etc.
     using python-jobspy and normalizes them into JobPost models.
     """
     if sources is None:
-        sources = ["linkedin", "indeed", "naukri"]
+        sources = ["linkedin", "indeed", "naukri", "glassdoor", "zip_recruiter"]
 
     jobspy_sites = map_site_names(sources)
     if not jobspy_sites:
         return []
 
-    logger.info(f"Running JobSpy scraper for sites: {jobspy_sites} | Search: '{search_term}' | Location: '{location}'")
+    loc_display = location if location.strip() else "Worldwide / Broad"
+    logger.info(f"Running JobSpy scraper for sites: {jobspy_sites} | Search: '{search_term}' | Location: '{loc_display}'")
     
     country_indeed = "India"
-    if "usa" in location.lower() or "united states" in location.lower():
+    loc_lower = location.lower()
+    if "usa" in loc_lower or "united states" in loc_lower:
         country_indeed = "USA"
-    elif "uk" in location.lower() or "united kingdom" in location.lower():
+    elif "uk" in loc_lower or "united kingdom" in loc_lower:
         country_indeed = "UK"
-    elif "canada" in location.lower():
+    elif "canada" in loc_lower:
+        country_indeed = "Canada"
         country_indeed = "Canada"
 
     try:

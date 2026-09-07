@@ -75,9 +75,9 @@ const INITIAL_STAGES: WorkflowStage[] = [
 
 export default function HomePage() {
   const [config, setConfig] = useState<WorkflowConfig>({
-    search_term: 'Full Stack Developer',
-    location: 'Kochi, Kerala, India',
-    candidate_skills: 'Python, FastAPI, React, PostgreSQL, Docker, AWS, REST APIs',
+    search_term: 'DevOps Engineer',
+    location: 'Remote, India',
+    candidate_skills: 'AWS, Azure, GCP, Kubernetes, Docker, Terraform, Ansible, CI/CD, Linux, Python, Bash, Helm, Prometheus, Grafana, DevSecOps',
     candidate_experience_years: 3,
     min_alert_score: 80,
     results_per_site: 25,
@@ -275,7 +275,7 @@ export default function HomePage() {
       <header className="top-nav">
         <a href="#" className="brand-badge">
           <div className="brand-title-wrap">
-            <span className="brand-logo-text">Job<span className="brand-logo-accent">Search</span></span>
+            <span className="brand-logo-text">DevOps<span className="brand-logo-accent">Pulse</span></span>
           </div>
         </a>
 

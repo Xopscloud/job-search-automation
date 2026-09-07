@@ -30,12 +30,25 @@ class CandidateProfile(BaseModel):
     min_match_score: int = Field(default=70, description="Minimum score to highlight or alert")
 
 class ScrapeRequest(BaseModel):
-    search_term: str = Field(default="Full Stack Developer", description="Primary job title or query keyword")
-    location: str = Field(default="India", description="Location filter")
+    search_term: str = Field(default="DevOps Engineer", description="Primary job title or query keyword")
+    location: str = Field(default="", description="Location filter (leave empty to search all locations/worldwide)")
     results_per_site: int = Field(default=25, description="Maximum results to retrieve per portal")
     sources: List[str] = Field(
-        default=["linkedin", "indeed", "naukri", "infopark", "technopark", "google_jobs"],
-        description="List of sources to query"
+        default=[
+            "linkedin",
+            "indeed",
+            "naukri",
+            "glassdoor",
+            "zip_recruiter",
+            "remoteok",
+            "weworkremotely",
+            "jobicy",
+            "ats",
+            "infopark",
+            "technopark",
+            "google_jobs",
+        ],
+        description="List of sources to query across the internet",
     )
     hours_old: Optional[int] = Field(default=72, description="Max age of job postings in hours")
     existing_job_ids: List[str] = Field(default_factory=list, description="Existing IDs to filter duplicates")
