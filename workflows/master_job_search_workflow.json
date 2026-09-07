@@ -84,7 +84,7 @@
             {
               "id": "f8a00007",
               "name": "results_per_site",
-              "value": "={{ $json.body?.results_per_site ?? $json.results_per_site ?? 25 }}",
+              "value": "={{ $json.body?.results_per_site ?? $json.results_per_site ?? 50 }}",
               "type": "number"
             }
           ]
@@ -103,7 +103,7 @@
         "url": "http://scraper-service:8000/api/scrape/all",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({\n  \"search_term\": $json.search_term || \"DevOps Engineer\",\n  \"location\": $json.location || \"\",\n  \"results_per_site\": $json.results_per_site || 25,\n  \"sources\": [\"linkedin\", \"indeed\", \"naukri\", \"glassdoor\", \"zip_recruiter\", \"google_jobs\", \"ats\", \"infopark\", \"technopark\", \"remoteok\", \"weworkremotely\", \"jobicy\", \"bayt\"],\n  \"hours_old\": 72\n}) }}",
+        "jsonBody": "={{ JSON.stringify({\n  \"search_term\": $json.search_term || \"DevOps Engineer\",\n  \"location\": $json.location || \"\",\n  \"results_per_site\": $json.results_per_site || 50,\n  \"sources\": [\"linkedin\", \"indeed\", \"naukri\", \"glassdoor\", \"zip_recruiter\", \"google_jobs\", \"ats\", \"infopark\", \"technopark\", \"remoteok\", \"weworkremotely\", \"jobicy\", \"bayt\"],\n  \"hours_old\": 72\n}) }}",
         "options": {
           "timeout": 120000
         }

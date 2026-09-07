@@ -45,6 +45,20 @@ const AVAILABLE_SOURCES = [
   { id: 'bayt', name: 'Bayt (Middle East / UAE / Gulf)' },
 ];
 
+export const INDIAN_IT_CITIES = [
+  { label: 'All India', value: 'India', badge: 'Nationwide' },
+  { label: 'Kochi / Ernakulam', value: 'Kochi, Kerala, India', badge: 'Infopark' },
+  { label: 'Trivandrum', value: 'Trivandrum, Kerala, India', badge: 'Technopark' },
+  { label: 'Bangalore (Bengaluru)', value: 'Bangalore, Karnataka, India', badge: 'Top IT Hub' },
+  { label: 'Hyderabad', value: 'Hyderabad, Telangana, India', badge: 'Cyberabad' },
+  { label: 'Pune', value: 'Pune, Maharashtra, India', badge: 'IT Corridor' },
+  { label: 'Chennai', value: 'Chennai, Tamil Nadu, India', badge: 'OMR' },
+  { label: 'Mumbai / Navi Mumbai', value: 'Mumbai, Maharashtra, India', badge: 'Finance & Cloud' },
+  { label: 'Delhi NCR (Noida / Gurgaon)', value: 'Gurgaon, Delhi NCR, India', badge: 'Tech Zone' },
+  { label: 'Coimbatore', value: 'Coimbatore, Tamil Nadu, India', badge: 'Emerging IT' },
+  { label: '🌐 Remote (Work from Anywhere)', value: 'Remote', badge: 'Remote' },
+];
+
 export const SearchHeader: React.FC<SearchHeaderProps> = ({
   config,
   onChangeConfig,
@@ -129,20 +143,61 @@ export const SearchHeader: React.FC<SearchHeaderProps> = ({
       {/* Floating Capsule Search Bar */}
       <div className="search-capsule-card">
         <form onSubmit={handleSubmit} className="search-capsule-form">
-          {/* Job Title / Role Search Input (Global Across All Sources) */}
-          <div className="capsule-input-group" style={{ flex: 1 }}>
+          {/* 1. Job Title / Role Search Input */}
+          <div className="capsule-input-group" style={{ flex: 1.3 }}>
             <span className="capsule-icon">
-              <SearchIcon size={20} color="var(--primary)" />
+              <SearchIcon size={19} color="var(--primary)" />
             </span>
             <input
               id="job-title-search-input"
               type="text"
               className="capsule-input"
-              placeholder="Search DevOps roles across the internet (e.g., DevOps Engineer, SRE, DevSecOps, Cloud Engineer)..."
+              placeholder="DevOps role (e.g. DevOps Engineer, SRE, Cloud, Platform)..."
               value={config.search_term}
               onChange={handleTitleChange}
               disabled={isLoading}
             />
+          </div>
+
+          <div className="capsule-divider" />
+
+          {/* 2. Indian IT City & Location Input with Dropdown */}
+          <div className="capsule-input-group location-group" style={{ flex: 1.1 }}>
+            <span className="capsule-icon">
+              <PinIcon size={18} color="var(--primary)" />
+            </span>
+            <input
+              id="job-location-search-input"
+              type="text"
+              className="capsule-input"
+              placeholder="Indian IT City (e.g. Kochi, Bangalore)..."
+              value={config.location}
+              onChange={(e) => onChangeConfig({ ...config, location: e.target.value })}
+              disabled={isLoading}
+            />
+            <select
+              id="city-select-dropdown"
+              className="capsule-city-select"
+              value={
+                INDIAN_IT_CITIES.some((c) => c.value.toLowerCase() === (config.location || '').toLowerCase())
+                  ? config.location
+                  : ''
+              }
+              onChange={(e) => {
+                if (e.target.value) {
+                  onChangeConfig({ ...config, location: e.target.value });
+                }
+              }}
+              disabled={isLoading}
+              title="Select Indian IT City"
+            >
+              <option value="" disabled>Select IT City...</option>
+              {INDIAN_IT_CITIES.map((city) => (
+                <option key={city.value} value={city.value}>
+                  {city.label}
+                </option>
+              ))}
+            </select>
           </div>
 
           {/* Actions: Settings Toggle & Find It Now Button */}
@@ -167,7 +222,7 @@ export const SearchHeader: React.FC<SearchHeaderProps> = ({
               {isLoading ? (
                 <>
                   <div className="btn-spinner" />
-                  <span>Processing...</span>
+                  <span>Searching...</span>
                 </>
               ) : (
                 <>
@@ -180,7 +235,7 @@ export const SearchHeader: React.FC<SearchHeaderProps> = ({
         </form>
       </div>
 
-      {/* Latest Postings Carousel (Matching reference design) */}
+      {/* Latest Postings & Quick Indian IT Hubs */}
       <div className="latest-postings-section">
         <div className="postings-header-row">
           <span className="postings-label">Target DevOps Roles:</span>
@@ -202,6 +257,31 @@ export const SearchHeader: React.FC<SearchHeaderProps> = ({
               </button>
             );
           })}
+        </div>
+
+        {/* Quick Indian IT Hubs Filter Chips */}
+        <div className="location-chips-row" style={{ marginTop: '14px' }}>
+          <span className="location-chips-label">📍 Indian IT Hubs:</span>
+          <div className="location-chips-wrap">
+            {INDIAN_IT_CITIES.map((city) => {
+              const isSelected =
+                (config.location || '').toLowerCase() === city.value.toLowerCase() ||
+                (city.value !== 'India' &&
+                  (config.location || '').toLowerCase().includes(city.label.split(' ')[0].toLowerCase()));
+              return (
+                <button
+                  key={city.value}
+                  type="button"
+                  className={`location-chip ${isSelected ? 'active' : ''}`}
+                  onClick={() => onChangeConfig({ ...config, location: city.value })}
+                  disabled={isLoading}
+                >
+                  <span>{city.label}</span>
+                  <span className="location-chip-badge">{city.badge}</span>
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
 

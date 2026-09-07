@@ -9,11 +9,11 @@ export async function POST(request: Request) {
     const body = await request.json();
     const {
       search_term = 'DevOps Engineer',
-      location = 'Remote, India',
+      location = 'India',
       candidate_skills = 'AWS, Azure, GCP, Kubernetes, Docker, Terraform, Ansible, CI/CD, Linux, Python, Bash, Helm, Prometheus, Grafana, DevSecOps',
       candidate_experience_years = 3,
       min_alert_score = 80,
-      results_per_site = 25,
+      results_per_site = 50,
       recipient_email = 'johnsonthomas.contact@gmail.com',
       webhook_url = process.env.N8N_WEBHOOK_URL || 'https://n8n.johnsonthomas.co.in/webhook/7d7ac056-7ec6-468d-9ff0-fd08f99cad4b',
       sources = [

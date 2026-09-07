@@ -287,11 +287,20 @@ async def scrape_all_sources(request: ScrapeRequest):
             logger.info(f"Source {source_name} returned {len(result)} items.")
             all_jobs.extend(result)
 
+    # Filter for strict DevOps relevance if querying DevOps/Cloud roles
+    from app.scrapers.infopark_scraper import is_devops_relevant
+    st_clean = (request.search_term or "devops").lower()
+    if any(k in st_clean for k in ["devops", "sre", "cloud", "infra", "platform", "sysadmin"]):
+        filtered_all_jobs = [j for j in all_jobs if is_devops_relevant(j.title, f"{j.title} {j.description}", request.search_term)]
+        logger.info(f"DevOps relevance filter retained {len(filtered_all_jobs)} of {len(all_jobs)} raw postings.")
+    else:
+        filtered_all_jobs = all_jobs
+
     # Deduplicate against current batch and historical existing_ids
     existing_set = set(request.existing_job_ids)
-    unique_jobs = deduplicate_jobs(all_jobs, existing_ids=existing_set)
+    unique_jobs = deduplicate_jobs(filtered_all_jobs, existing_ids=existing_set)
 
-    logger.info(f"Total raw jobs collected: {len(all_jobs)} | Net unique new jobs: {len(unique_jobs)}")
+    logger.info(f"Total raw jobs collected: {len(all_jobs)} | Relevant: {len(filtered_all_jobs)} | Net unique new jobs: {len(unique_jobs)}")
 
     return ScrapeResponse(
         success=True,

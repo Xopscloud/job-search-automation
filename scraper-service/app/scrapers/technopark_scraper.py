@@ -10,6 +10,7 @@ from app.models import JobPost
 from app.config import settings
 from app.utils.deduplicator import generate_job_id
 from app.utils.contact_extractor import extract_all_contacts
+from app.scrapers.infopark_scraper import is_devops_relevant
 
 logger = logging.getLogger(__name__)
 
@@ -18,15 +19,14 @@ TECHNOPARK_JOBS_URL = "https://technopark.org/job-search"
 
 def scrape_technopark(
     search_term: str = "",
-    limit: int = 30
+    limit: int = 40
 ) -> List[JobPost]:
     """
-    Scrapes active job listings from Technopark Trivandrum portal.
+    Scrapes active job listings from Technopark Trivandrum portal with strict DevOps relevance checks.
     Extracts structured data from Inertia.js state or DOM elements.
     """
     logger.info(f"Scraping Technopark Trivandrum jobs for query: '{search_term}'...")
     jobs: List[JobPost] = []
-    keywords = [k.strip().lower() for k in search_term.split() if len(k.strip()) > 2]
 
     try:
         headers = settings.DEFAULT_HEADERS.copy()
@@ -69,11 +69,10 @@ def scrape_technopark(
                             if not title or not company:
                                 continue
 
-                            # Keyword filter
-                            if keywords:
-                                full_text = f"{title} {company} {item.get('description', '')}".lower()
-                                if not any(kw in full_text for kw in keywords):
-                                    continue
+                            # Filter strictly for DevOps relevance
+                            full_text = f"{title} {company} {item.get('description', '')}"
+                            if not is_devops_relevant(title, full_text, search_term):
+                                continue
 
                             desc = str(item.get("description") or item.get("job_description") or item.get("skills") or "")
                             job_url = str(item.get("url") or item.get("apply_url") or f"{TECHNOPARK_BASE_URL}/job-search")
@@ -129,9 +128,9 @@ def scrape_technopark(
                     if not title or len(title) < 3:
                         continue
 
-                    if keywords:
-                        if not any(kw in f"{title} {card_text}".lower() for kw in keywords):
-                            continue
+                    # Filter strictly for DevOps relevance
+                    if not is_devops_relevant(title, card_text, search_term):
+                        continue
 
                     href = link["href"]
                     job_url = f"{TECHNOPARK_BASE_URL}{href}" if not href.startswith("http") else href
@@ -214,7 +213,9 @@ def scrape_technopark(
                             elif " | " in full_title:
                                 parts = full_title.split(" | ")
                                 if len(parts) > 1 and "technopark" not in parts[1].lower():
-                                    company = parts[1].strip()
+                            # Filter strictly for DevOps relevance
+                            if not is_devops_relevant(clean_title, snippet, search_term):
+                                continue
 
                             email, phone, recruiter = extract_all_contacts(snippet)
                             job_id = generate_job_id(clean_title, company, "Trivandrum, Kerala")

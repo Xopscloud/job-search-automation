@@ -15,16 +15,65 @@ logger = logging.getLogger(__name__)
 INFOPARK_BASE_URL = "https://infopark.in"
 INFOPARK_JOBS_URL = "https://infopark.in/companies-job"
 
+DEVOPS_CORE_KEYWORDS = [
+    "devops", "sre", "site reliability", "cloud", "infrastructure",
+    "platform", "ci/cd", "ci-cd", "kubernetes", "k8s", "terraform",
+    "ansible", "sysadmin", "system admin", "systems admin", "systems engineer",
+    "system engineer", "linux admin", "linux engineer", "devsecops",
+    "cloud architect", "aws", "azure", "gcp", "docker", "build and release",
+    "release engineer", "automation engineer"
+]
+
+NON_DEVOPS_EXCLUSIONS = [
+    "digital marketing", "seo", "social media", "content writer", "copywriter",
+    "sales", "business development", "accountant", "visual builder", "graphic designer",
+    "ui/ux", "telecaller", "bpo", "recruiter", "talent acquisition", "hr executive",
+    "qa manual", "manual test", "payments & integration", "data & tracking"
+]
+
+def is_devops_relevant(title: str, text: str, search_term: str = "") -> bool:
+    """
+    Validates whether a job posting is genuinely DevOps/Cloud/Infrastructure related,
+    strictly filtering out unrelated roles like Marketing, Sales, Visual Builder, etc.
+    """
+    t_lower = (title or "").lower()
+    desc_lower = (text or "").lower()
+
+    # 1. Negative exclusion check on title
+    for neg in NON_DEVOPS_EXCLUSIONS:
+        if neg in t_lower:
+            return False
+
+    # 2. Check search term context
+    st = (search_term or "devops").lower().strip()
+    is_devops_query = any(k in st for k in ["devops", "sre", "cloud", "infra", "platform", "sysadmin", "linux"])
+
+    if is_devops_query:
+        # Title must match at least one DevOps/Cloud core term
+        if any(k in t_lower for k in DEVOPS_CORE_KEYWORDS):
+            return True
+
+        # If title is generic (e.g. "Associate Engineer"), description must mention at least 2 DevOps tools
+        devops_hits = [k for k in ["kubernetes", "docker", "terraform", "ci/cd", "aws", "azure", "jenkins", "ansible", "linux", "git"] if k in desc_lower]
+        if len(devops_hits) >= 2:
+            return True
+
+        return False
+
+    # General query fallback
+    kws = [k.strip().lower() for k in st.split() if len(k.strip()) > 2]
+    return any(kw in t_lower or kw in desc_lower for kw in kws)
+
+
 def scrape_infopark(
     search_term: str = "",
-    limit: int = 30
+    limit: int = 50
 ) -> List[JobPost]:
     """
-    Scrapes active job vacancies directly from Infopark Kochi portal.
+    Scrapes active job vacancies directly from Infopark Kochi portal with strict DevOps filtering.
     """
     logger.info(f"Scraping Infopark Kochi jobs for query: '{search_term}'...")
     jobs: List[JobPost] = []
-    keywords = [k.strip().lower() for k in search_term.split() if len(k.strip()) > 2]
 
     try:
         with httpx.Client(headers=settings.DEFAULT_HEADERS, timeout=settings.DEFAULT_TIMEOUT, follow_redirects=True) as client:
@@ -87,11 +136,9 @@ def scrape_infopark(
                     if not title or len(title) < 2:
                         continue
 
-                    # Filter by search keywords if provided
-                    if keywords:
-                        match_text = f"{title} {text_content}".lower()
-                        if not any(kw in match_text for kw in keywords):
-                            continue
+                    # Filter strictly for DevOps / Cloud relevance
+                    if not is_devops_relevant(title, text_content, search_term):
+                        continue
 
                     # Extract experience if specified (e.g. 2-4 years, 3+ yrs)
                     exp_match = re.search(r'(\d+[\s\-\+to]+\d*\s*(?:years?|yrs?))', text_content, re.IGNORECASE)

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { JobCard } from './JobCard';
 import { DownloadIcon, SearchIcon, RocketIcon, PinIcon } from './Icons';
 import { JobPost } from '../types';
@@ -11,13 +11,50 @@ interface JobExplorerProps {
   onTriggerSearch?: () => void;
 }
 
+const DEVOPS_KEYWORDS = [
+  'devops', 'sre', 'reliability', 'cloud', 'infrastructure', 'platform',
+  'ci/cd', 'ci-cd', 'kubernetes', 'k8s', 'terraform', 'ansible', 'sysadmin',
+  'system admin', 'systems admin', 'systems engineer', 'system engineer', 'linux',
+  'devsecops', 'automation', 'aws', 'azure', 'gcp', 'docker', 'build and release', 'release engineer'
+];
+
+const NON_DEVOPS_EXCLUSIONS = [
+  'digital marketing', 'seo', 'social media', 'content writer', 'copywriter',
+  'sales', 'business development', 'accountant', 'visual builder', 'graphic designer',
+  'ui/ux', 'telecaller', 'bpo', 'recruiter', 'talent acquisition', 'hr executive',
+  'qa manual', 'manual test', 'qa tester', 'qa engineer', 'qa analyst', 'payments & integration', 'data & tracking'
+];
+
+function getPageNumbers(current: number, total: number): (number | string)[] {
+  if (total <= 7) {
+    return Array.from({ length: total }, (_, i) => i + 1);
+  }
+  if (current <= 4) {
+    return [1, 2, 3, 4, 5, '...', total];
+  }
+  if (current >= total - 3) {
+    return [1, '...', total - 4, total - 3, total - 2, total - 1, total];
+  }
+  return [1, '...', current - 1, current, current + 1, '...', total];
+}
+
 export const JobExplorer: React.FC<JobExplorerProps> = ({ jobs, searchTerm, onTriggerSearch }) => {
   const [selectedPortal, setSelectedPortal] = useState<string>('all');
   const [selectedLocation, setSelectedLocation] = useState<string>('all');
   const [minScoreFilter, setMinScoreFilter] = useState<number>(0);
   const [onlyOutreachReady, setOnlyOutreachReady] = useState<boolean>(false);
+  const [onlyDevopsRoles, setOnlyDevopsRoles] = useState<boolean>(true);
   const [filterQuery, setFilterQuery] = useState<string>('');
   const [isExporting, setIsExporting] = useState<boolean>(false);
+
+  // Pagination state (default: 12 cards per page)
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(12);
+
+  // Reset to page 1 whenever any filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedPortal, selectedLocation, minScoreFilter, onlyOutreachReady, onlyDevopsRoles, filterQuery, pageSize]);
 
   // Extract unique locations dynamically from all retrieved jobs
   const availableLocations = useMemo(() => {
@@ -51,7 +88,32 @@ export const JobExplorer: React.FC<JobExplorerProps> = ({ jobs, searchTerm, onTr
         }
       }
 
-      // 2. Location filter (Applied client-side after jobs are listed)
+      // 2. Strict DevOps Role Filter (Eliminates Digital Marketing, QA, Visual Builder, etc.)
+      if (onlyDevopsRoles) {
+        const titleLower = (job.title || '').toLowerCase();
+        const descLower = (job.description || '').toLowerCase();
+        const skillsLower = (job.required_skills || []).map((s) => s.toLowerCase()).join(' ');
+
+        // Discard if title matches any exclusion
+        if (NON_DEVOPS_EXCLUSIONS.some((neg) => titleLower.includes(neg))) {
+          return false;
+        }
+
+        // Title matches DevOps keyword OR skills/description have strong DevOps tool mention
+        const titleMatch = DEVOPS_KEYWORDS.some((kw) => titleLower.includes(kw));
+        const skillMatch = DEVOPS_KEYWORDS.some((kw) => skillsLower.includes(kw));
+        const descMatch =
+          (descLower.includes('kubernetes') && descLower.includes('docker')) ||
+          (descLower.includes('terraform') && descLower.includes('aws')) ||
+          (descLower.includes('ci/cd') && descLower.includes('pipeline')) ||
+          descLower.includes('devops');
+
+        if (!titleMatch && !skillMatch && !descMatch) {
+          return false;
+        }
+      }
+
+      // 3. Location filter (Applied client-side after jobs are listed)
       if (selectedLocation !== 'all') {
         const jobLoc = (job.location || '').toLowerCase();
         const target = selectedLocation.toLowerCase();
@@ -60,17 +122,17 @@ export const JobExplorer: React.FC<JobExplorerProps> = ({ jobs, searchTerm, onTr
         }
       }
 
-      // 3. Score filter
+      // 4. Score filter
       if (minScoreFilter > 0 && (job.match_score || 0) < minScoreFilter) {
         return false;
       }
 
-      // 4. Recruiter Email Outreach filter
+      // 5. Recruiter Email Outreach filter
       if (onlyOutreachReady && !job.recruiter_email) {
         return false;
       }
 
-      // 5. In-page search text filter
+      // 6. In-page search text filter
       if (filterQuery.trim()) {
         const q = filterQuery.toLowerCase();
         const matchTitle = (job.title || '').toLowerCase().includes(q);
@@ -85,7 +147,15 @@ export const JobExplorer: React.FC<JobExplorerProps> = ({ jobs, searchTerm, onTr
 
       return true;
     });
-  }, [jobs, selectedPortal, selectedLocation, minScoreFilter, filterQuery]);
+  }, [jobs, selectedPortal, selectedLocation, minScoreFilter, onlyOutreachReady, onlyDevopsRoles, filterQuery]);
+
+  const totalPages = pageSize === -1 ? 1 : Math.ceil(filteredJobs.length / pageSize) || 1;
+
+  const paginatedJobs = useMemo(() => {
+    if (pageSize === -1) return filteredJobs;
+    const start = (currentPage - 1) * pageSize;
+    return filteredJobs.slice(start, start + pageSize);
+  }, [filteredJobs, currentPage, pageSize]);
 
   const handleExport = async () => {
     try {
@@ -208,6 +278,20 @@ export const JobExplorer: React.FC<JobExplorerProps> = ({ jobs, searchTerm, onTr
             }
           >
             ✉️ Recruiter Email ({jobs.filter((j) => Boolean(j.recruiter_email)).length})
+          </button>
+
+          <button
+            type="button"
+            className={`portal-filter-btn ${onlyDevopsRoles ? 'active' : ''}`}
+            onClick={() => setOnlyDevopsRoles(!onlyDevopsRoles)}
+            title="Filter strictly for DevOps, SRE, Cloud, Platform, and Infrastructure roles"
+            style={
+              onlyDevopsRoles
+                ? { background: '#0284c7', color: '#ffffff', borderColor: '#0284c7', fontWeight: 700 }
+                : {}
+            }
+          >
+            🛡️ DevOps Only {onlyDevopsRoles ? '✓' : ''}
           </button>
 
           <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
@@ -350,18 +434,97 @@ export const JobExplorer: React.FC<JobExplorerProps> = ({ jobs, searchTerm, onTr
               setSelectedLocation('all');
               setMinScoreFilter(0);
               setOnlyOutreachReady(false);
+              setOnlyDevopsRoles(true);
               setFilterQuery('');
+              setCurrentPage(1);
             }}
           >
             Reset All Filters
           </button>
         </div>
       ) : (
-        <div className="jobs-grid">
-          {filteredJobs.map((job, idx) => (
-            <JobCard key={`${job.job_id || 'job'}-${idx}`} job={job} />
-          ))}
-        </div>
+        <>
+          <div className="jobs-grid">
+            {paginatedJobs.map((job, idx) => (
+              <JobCard key={`${job.job_id || 'job'}-${idx}`} job={job} />
+            ))}
+          </div>
+
+          {/* Pagination Controls */}
+          {filteredJobs.length > 0 && (
+            <div className="pagination-bar">
+              <div className="pagination-info">
+                Showing{' '}
+                <strong>
+                  {pageSize === -1 ? 1 : (currentPage - 1) * pageSize + 1}
+                </strong>
+                –
+                <strong>
+                  {pageSize === -1
+                    ? filteredJobs.length
+                    : Math.min(currentPage * pageSize, filteredJobs.length)}
+                </strong>{' '}
+                of <strong>{filteredJobs.length}</strong> postings
+              </div>
+
+              {pageSize !== -1 && totalPages > 1 && (
+                <div className="pagination-controls">
+                  <button
+                    type="button"
+                    className="pagination-btn"
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                  >
+                    &larr; Prev
+                  </button>
+
+                  {getPageNumbers(currentPage, totalPages).map((p, idx) =>
+                    typeof p === 'number' ? (
+                      <button
+                        key={idx}
+                        type="button"
+                        className={`pagination-number-btn ${currentPage === p ? 'active' : ''}`}
+                        onClick={() => setCurrentPage(p)}
+                      >
+                        {p}
+                      </button>
+                    ) : (
+                      <span key={idx} className="pagination-ellipsis">
+                        ...
+                      </span>
+                    )
+                  )}
+
+                  <button
+                    type="button"
+                    className="pagination-btn"
+                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={currentPage === totalPages}
+                  >
+                    Next &rarr;
+                  </button>
+                </div>
+              )}
+
+              <div className="pagination-size-wrap">
+                <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Per page:</span>
+                <select
+                  className="pagination-size-select"
+                  value={pageSize}
+                  onChange={(e) => {
+                    setPageSize(Number(e.target.value));
+                    setCurrentPage(1);
+                  }}
+                >
+                  <option value={12}>12</option>
+                  <option value={24}>24</option>
+                  <option value={48}>48</option>
+                  <option value={-1}>All ({filteredJobs.length})</option>
+                </select>
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
