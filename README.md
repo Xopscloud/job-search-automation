@@ -278,13 +278,49 @@ This will:
   ```
   If `Swap` shows `0B`, re-run the swap section of `scripts/setup-ec2.sh`.
 
-### 3. Automatic Backups
-To schedule automated nightly backups of your n8n database and credentials to `/var/backups/n8n`:
-```bash
-sudo crontab -e
-# Add the following line to run every night at 2:00 AM:
-0 2 * * * /home/ubuntu/JOB_SEARCH_AUTOMATION/scripts/backup_n8n.sh > /var/log/n8n_backup.log 2>&1
+---
+
+## 🔀 Decoupled Architecture & n8n Integration
+
+This repository hosts the **Scraper Microservice & Automation Tools** independently of n8n.
+
+### Communication Architecture
+```text
+┌────────────────────────────────────────────────────────┐
+│               Shared Network: n8n_net                  │
+│                                                        │
+│   ┌─────────────────────┐      ┌────────────────────┐  │
+│   │ n8n Platform Stack  │─────▶│ Scraper Microservice│ │
+│   │ (Standalone Repo)   │ HTTP │ (This Repo - Pt 8000)│ │
+│   └─────────────────────┘      └────────────────────┘  │
+└────────────────────────────────────────────────────────┘
 ```
+
+The scraper runs on the shared Docker bridge network `n8n_net`. Your n8n workflow communicates directly with this service using its internal DNS alias:
+- **Scrape All Portals**: `http://scraper-service:8000/api/scrape/all`
+- **Generate Excel Report**: `http://scraper-service:8000/api/export-excel`
+- **Healthcheck**: `http://scraper-service:8000/health`
+
+### Starting the Scraper Microservice
+1. Ensure the shared Docker network exists:
+   ```bash
+   sudo docker network create n8n_net 2>/dev/null || true
+   ```
+2. Build and launch the scraper container:
+   ```bash
+   sudo docker compose up -d --build
+   ```
+3. Check status & logs:
+   ```bash
+   sudo docker compose ps
+   sudo docker compose logs -f scraper-service
+   ```
+4. Verify healthcheck:
+   ```bash
+   curl http://localhost:8000/health
+   ```
+
+
 
 ---
 

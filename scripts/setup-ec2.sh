@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# AWS EC2 AUTOMATED SETUP SCRIPT FOR N8N JOB SEARCH AUTOMATION STACK
+# AWS EC2 AUTOMATED SETUP SCRIPT FOR JOB SEARCH SCRAPER MICROSERVICE
 # Targets: Ubuntu 22.04 LTS / Ubuntu 24.04 LTS
 # ==============================================================================
 
 set -euo pipefail
 
 echo "=========================================================="
-echo "🚀 Starting Automated Setup of n8n Job Search Stack on EC2"
+echo "🚀 Starting Automated Setup of Job Search Scraper Stack on EC2"
 echo "=========================================================="
 
 # 1. Update and install basic tools
@@ -53,16 +53,14 @@ else
     echo "ℹ️ Docker already installed."
 fi
 
-# 4. Configure UFW Firewall
-echo "🛡️ Configuring Firewall (UFW)..."
-sudo ufw default deny incoming
-sudo ufw default allow outgoing
-sudo ufw allow 22/tcp comment 'SSH'
-sudo ufw allow 80/tcp comment 'HTTP (Caddy SSL)'
-sudo ufw allow 443/tcp comment 'HTTPS (Caddy SSL)'
-sudo ufw allow 5678/tcp comment 'n8n direct web'
-echo "y" | sudo ufw enable || true
-echo "✅ Firewall active on ports 22, 80, 443, 5678."
+# 4. Ensure Shared Docker Network exists (communicates with standalone n8n)
+echo "🌐 Ensuring shared Docker network 'n8n_net' exists..."
+if ! sudo docker network inspect n8n_net &>/dev/null; then
+    sudo docker network create n8n_net
+    echo "✅ Shared network 'n8n_net' created."
+else
+    echo "ℹ️ Shared network 'n8n_net' already exists."
+fi
 
 # 5. Environment configuration
 STACK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -71,25 +69,19 @@ cd "$STACK_DIR"
 if [ ! -f .env ]; then
     echo "📝 Creating .env from .env.example..."
     cp .env.example .env
-    echo "⚠️  PLEASE EDIT .env TO FILL IN YOUR API KEYS AND EMAIL CREDENTIALS!"
+    echo "⚠️  PLEASE EDIT .env TO FILL IN YOUR API KEYS AND TARGET ROLES!"
 fi
 
-# 6. Build and Start Stack
-echo "🏗️ Building and starting Docker containers..."
+# 6. Build and Start Scraper Microservice
+echo "🏗️ Building and starting scraper service..."
 sudo docker compose build --no-cache scraper-service
 sudo docker compose up -d
 
 echo ""
 echo "=========================================================="
-echo "🎉 DEPLOYMENT COMPLETE!"
+echo "🎉 SCRAPER SERVICE DEPLOYMENT COMPLETE!"
 echo "=========================================================="
-PUBLIC_IP=$(curl -s https://ifconfig.me || curl -s https://api.ipify.org || echo "YOUR-EC2-PUBLIC-IP")
-echo "🌐 Access n8n at: http://${PUBLIC_IP}:5678 or your configured domain"
 echo "🔍 View container status: sudo docker compose ps"
 echo "📜 View live logs: sudo docker compose logs -f"
-echo ""
-echo "Next Steps:"
-echo "1. Edit .env with your credentials: nano .env"
-echo "2. Restart containers if .env changed: sudo docker compose up -d"
-echo "3. Log into n8n web UI, create your admin account, and import workflows/master_job_search_workflow.json"
+echo "🏥 Health check: curl http://localhost:8000/health"
 echo "=========================================================="
