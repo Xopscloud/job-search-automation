@@ -213,6 +213,8 @@ def scrape_technopark(
                             elif " | " in full_title:
                                 parts = full_title.split(" | ")
                                 if len(parts) > 1 and "technopark" not in parts[1].lower():
+                                    company = parts[1].strip()
+
                             # Filter strictly for DevOps relevance
                             if not is_devops_relevant(clean_title, snippet, search_term):
                                 continue
