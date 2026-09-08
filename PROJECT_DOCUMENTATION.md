@@ -82,7 +82,40 @@ The contemporary tech job search (especially for DevOps, Cloud, and SRE roles) i
 
 ---
 
-## 🛠️ 3. Technology Stack
+## 🔄 3. The 9-Step Autonomous Workflow Pipeline
+
+![AI-Powered Job Search Automation Workflow](workflow-diagram.jpg)
+
+The platform executes a continuous 9-step cyclical pipeline orchestrated by the central **n8n engine**:
+
+1. **Input Job Role & Criteria**:
+   - Accepts role targets (*DevOps Engineer, Cloud Engineer, SRE, Platform Engineer*).
+   - Configures geographical preferences (Indian IT hubs like *Kochi/Ernakulam, Trivandrum, Bangalore, Hyderabad, Pune, Chennai, Mumbai* or *Remote*).
+2. **Search Multiple Sources**:
+   - Simultaneously queries 13 platforms (*LinkedIn, Indeed, Naukri, Foundit, Glassdoor, ZipRecruiter, Google Jobs, Company ATS, Infopark, Technopark, RemoteOK, WeWorkRemotely, Jobicy, Bayt*).
+3. **Collect & Normalize Data**:
+   - Asynchronously extracts and cleans unstructured postings into standardized JSON schemas.
+   - Applies dual-layer anti-bot evasion (JobSpy direct + live search dorks) to bypass cloud datacenter IP blocks.
+4. **Remove Duplicates**:
+   - Calculates deterministic MD5 hashes `hash(company + title + location)` to discard redundant multi-posted listings.
+5. **AI Job Analysis & Strict DevOps Filtering**:
+   - Deep JD parsing via LLMs (Groq / Llama 3.3 70B, Google Gemini 1.5 Flash, or OpenAI GPT-4o-mini).
+   - Enforces strict heuristic filters (`is_devops_relevant`) to eliminate non-engineering postings (Digital Marketing, Visual Builders, Manual QA).
+6. **Skill Matching & Fit Rating**:
+   - Compares required skills against candidate profile (Kubernetes, Docker, Terraform, AWS, CI/CD pipelines).
+   - Assigns a 0–100% Match Fit Score and identifies skill gaps.
+7. **Recruiter Contact Extraction**:
+   - Mines hiring manager names, corporate HR emails (`hr@...`, `careers@...`), and WhatsApp contact numbers directly from listing text.
+8. **Generate Reports & ATS Application Tracking**:
+   - Automatically synchronizes to Google Sheets ("Active Jobs") and formats `.xlsx` Excel spreadsheets with frozen headers and hyperlinks.
+   - Manages real-time application states, displaying **`✓ Already Applied`** ribbon banners and 1-click manual apply toggles.
+9. **Daily Multi-Channel Notification & Cold Outreach**:
+   - Delivers HTML email summaries and Telegram priority alerts for high fit positions (≥80%).
+   - Enables 1-click personalized recruiter cold outreach via Gmail API with the candidate's PDF resume automatically attached.
+
+---
+
+## 🛠️ 4. Technology Stack
 
 | Layer | Technologies | Purpose |
 | :--- | :--- | :--- |

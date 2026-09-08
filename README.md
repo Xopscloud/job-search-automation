@@ -21,8 +21,15 @@ Orchestrated using **n8n** and containerized microservices running on **AWS EC2*
 ---
 
 > 📖 **Comprehensive Guides & Resources:**
+> - 🌐 **[Interactive HTML Documentation](documentation.html)**: Standalone visual interactive guide with lightbox diagram, step-by-step setup, and copyable code blocks.
 > - 📄 **[Full Technical Project Documentation](PROJECT_DOCUMENTATION.md)**: Deep-dive architecture, microservices, anti-bot bypass strategies, and deployment guide.
 > - 💼 **[LinkedIn Portfolio & Social Kit](LINKEDIN_PORTFOLIO_KIT.md)**: Pre-formatted LinkedIn project section entry and 3 viral post templates.
+
+---
+
+## 🔄 The 9-Step AI Automation Pipeline
+
+![AI-Powered Job Search Automation](workflow-diagram.jpg)
 
 ---
 
