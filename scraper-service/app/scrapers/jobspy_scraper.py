@@ -142,6 +142,24 @@ def _dataframe_to_jobposts(jobs_df: pd.DataFrame, default_location: str = "", de
     return results
 
 
+def _decode_bing_url(raw_url: str) -> str:
+    """Decodes Bing tracking redirect URL to direct destination URL."""
+    try:
+        import base64
+        import urllib.parse
+        if "bing.com/ck/a" in raw_url and "u=" in raw_url:
+            parsed = urllib.parse.urlparse(raw_url)
+            qs = urllib.parse.parse_qs(parsed.query)
+            u_val = qs.get("u", [""])[0]
+            if u_val.startswith("a1"):
+                b64_str = u_val[2:]
+                padding = "=" * ((4 - len(b64_str) % 4) % 4)
+                return base64.b64decode(b64_str + padding).decode("utf-8", errors="ignore")
+    except Exception:
+        pass
+    return raw_url
+
+
 def _search_portal_fallback(
     portal: str,
     domain_query: str,
@@ -150,15 +168,14 @@ def _search_portal_fallback(
     limit: int = 20
 ) -> List[JobPost]:
     """
-    Search-engine fallback that retrieves active job postings when a job board's
-    anti-bot protection or rate limiter blocks direct automated scraping.
+    Search-engine fallback that retrieves active job postings via Bing Search
+    when direct portal scrapers encounter Cloudflare / anti-bot blocks.
     """
-    import urllib.parse
     import httpx
     from bs4 import BeautifulSoup
     from app.config import settings
 
-    logger.info(f"Executing search fallback for {portal} ({domain_query}) | Query: '{search_term}' | Location: '{location}'")
+    logger.info(f"Executing Bing search fallback for {portal} ({domain_query}) | Query: '{search_term}' | Location: '{location}'")
     jobs: List[JobPost] = []
 
     clean_loc = (location or "").replace("Remote,", "").replace("Remote", "").strip()
@@ -166,32 +183,28 @@ def _search_portal_fallback(
     if clean_loc:
         query += f' "{clean_loc}"'
 
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+    }
+
     try:
-        headers = settings.DEFAULT_HEADERS.copy()
-        headers["Referer"] = "https://html.duckduckgo.com/"
-        data = {
-            "q": query,
-            "b": "",
-            "kl": "in-en" if "india" in (location or "").lower() else "us-en"
-        }
+        url = f"https://www.bing.com/search?q={httpx.URL('', params={'q': query}).query.decode('utf-8').replace('q=', '')}"
         with httpx.Client(headers=headers, timeout=settings.DEFAULT_TIMEOUT, follow_redirects=True) as client:
-            resp = client.post("https://html.duckduckgo.com/html/", data=data)
+            resp = client.get(f"https://www.bing.com/search?q={query}")
             if resp.status_code == 200:
                 soup = BeautifulSoup(resp.text, "html.parser")
-                results = soup.select(".result, .results_links")
+                results = soup.select("li.b_algo")
                 for res in results:
                     try:
-                        title_elem = res.select_one(".result__title a")
-                        snippet_elem = res.select_one(".result__snippet")
+                        title_elem = res.select_one("h2 a")
+                        snippet_elem = res.select_one(".b_caption p, p")
                         if not title_elem:
                             continue
 
-                        raw_url = title_elem.get("href", "")
-                        if "uddg=" in raw_url:
-                            parsed_q = urllib.parse.parse_qs(urllib.parse.urlparse(raw_url).query)
-                            job_url = parsed_q.get("uddg", [raw_url])[0]
-                        else:
-                            job_url = raw_url
+                        raw_href = title_elem.get("href", "")
+                        job_url = _decode_bing_url(raw_href)
 
                         full_title = title_elem.get_text(strip=True)
                         snippet = snippet_elem.get_text(strip=True) if snippet_elem else ""
@@ -366,45 +379,39 @@ def scrape_naukri(
     except Exception as err:
         logger.warning(f"JobSpy Naukri attempt failed: {err}. Proceeding to search fallback.")
 
-    # 2. Search Fallback for Naukri
-    import urllib.parse
+    # 2. Search Fallback for Naukri via Bing
     import httpx
     from bs4 import BeautifulSoup
     from app.config import settings
 
-    logger.info("Executing search fallback for Naukri postings...")
+    logger.info("Executing Bing search fallback for Naukri postings...")
     jobs: List[JobPost] = []
     
     query = f'site:naukri.com "{search_term}"'
     if location and location.strip():
         query += f' "{location.strip()}"'
 
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+    }
+
     try:
-        headers = settings.DEFAULT_HEADERS.copy()
-        headers["Referer"] = "https://html.duckduckgo.com/"
-        data = {
-            "q": query,
-            "b": "",
-            "kl": "in-en"
-        }
         with httpx.Client(headers=headers, timeout=settings.DEFAULT_TIMEOUT, follow_redirects=True) as client:
-            resp = client.post("https://html.duckduckgo.com/html/", data=data)
+            resp = client.get(f"https://www.bing.com/search?q={query}")
             if resp.status_code == 200:
                 soup = BeautifulSoup(resp.text, "html.parser")
-                results = soup.select(".result, .results_links")
+                results = soup.select("li.b_algo")
                 for res in results:
                     try:
-                        title_elem = res.select_one(".result__title a")
-                        snippet_elem = res.select_one(".result__snippet")
+                        title_elem = res.select_one("h2 a")
+                        snippet_elem = res.select_one(".b_caption p, p")
                         if not title_elem:
                             continue
 
-                        raw_url = title_elem.get("href", "")
-                        if "uddg=" in raw_url:
-                            parsed_q = urllib.parse.parse_qs(urllib.parse.urlparse(raw_url).query)
-                            job_url = parsed_q.get("uddg", [raw_url])[0]
-                        else:
-                            job_url = raw_url
+                        raw_href = title_elem.get("href", "")
+                        job_url = _decode_bing_url(raw_href)
 
                         # Must be a naukri.com job URL
                         if "naukri.com" not in job_url:
@@ -420,7 +427,7 @@ def scrape_naukri(
                             parts = clean_title.split(" at ")
                             clean_title = parts[0].strip()
                             company = parts[1].strip()
-                        elif " in " in clean_title.lower() and ("tcs" in clean_title.lower() or "infosys" in clean_title.lower() or "wipro" in clean_title.lower()):
+                        elif " in " in clean_title.lower() and any(c in clean_title.lower() for c in ["tcs", "infosys", "wipro", "cognizant", "accenture", "hcl", "capgemini"]):
                             company = clean_title.split(" in ")[-1].strip()
 
                         job_loc = location or "India (Naukri)"
@@ -434,7 +441,7 @@ def scrape_naukri(
                             company_details="Naukri India Talent Portal",
                             description=snippet,
                             location=job_loc,
-                            required_skills=[],
+                            required_skills=["DevOps", "CI/CD", "Linux"],
                             experience="Experienced",
                             salary=None,
                             date_posted=datetime.now().strftime("%Y-%m-%d"),
@@ -454,7 +461,7 @@ def scrape_naukri(
     except Exception as search_err:
         logger.error(f"Error in Naukri search fallback: {search_err}")
 
-    logger.info(f"Naukri extracted {len(jobs)} jobs via fallback.")
+    logger.info(f"Naukri fallback retrieved {len(jobs)} postings.")
     return jobs
 
 

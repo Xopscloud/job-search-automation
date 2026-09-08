@@ -28,6 +28,8 @@ from app.scrapers.remote_devops_scraper import (
     scrape_remoteok,
     scrape_weworkremotely,
     scrape_jobicy,
+    scrape_remotive,
+    scrape_arbeitnow,
 )
 
 # Configure logging
@@ -40,7 +42,7 @@ logger = logging.getLogger("scraper_app")
 app = FastAPI(
     title=settings.APP_NAME,
     version="1.0.0",
-    description="Automated multi-portal job scraper microservice for LinkedIn, Indeed, Naukri, Infopark, Technopark, and ATS career sites."
+    description="Automated multi-portal job scraper microservice for LinkedIn, Indeed, Naukri, Infopark, Technopark, Remotive, Arbeitnow, and ATS career sites."
 )
 
 app.add_middleware(
@@ -66,6 +68,8 @@ ALL_SUPPORTED_SOURCES = [
     "remoteok",
     "weworkremotely",
     "jobicy",
+    "remotive",
+    "arbeitnow",
     "bayt",
 ]
 
@@ -270,6 +274,30 @@ async def scrape_all_sources(request: ScrapeRequest):
             loop.run_in_executor(
                 thread_pool,
                 scrape_jobicy,
+                request.search_term,
+                request.results_per_site
+            )
+        )
+
+    # 14. Remotive (DevOps API)
+    if any(s in active_sources for s in ["remotive", "remote_devops"]):
+        task_source_names.append("remotive")
+        tasks.append(
+            loop.run_in_executor(
+                thread_pool,
+                scrape_remotive,
+                request.search_term,
+                request.results_per_site
+            )
+        )
+
+    # 15. Arbeitnow (Tech & DevOps API)
+    if any(s in active_sources for s in ["arbeitnow", "remote_devops"]):
+        task_source_names.append("arbeitnow")
+        tasks.append(
+            loop.run_in_executor(
+                thread_pool,
+                scrape_arbeitnow,
                 request.search_term,
                 request.results_per_site
             )

@@ -96,6 +96,8 @@ export default function HomePage() {
       'remoteok',
       'weworkremotely',
       'jobicy',
+      'remotive',
+      'arbeitnow',
       'bayt',
     ],
   });

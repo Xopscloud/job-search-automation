@@ -195,6 +195,8 @@ export const JobExplorer: React.FC<JobExplorerProps> = ({ jobs, searchTerm, onTr
     { id: 'zip_recruiter', name: 'ZipRecruiter' },
     { id: 'google_jobs', name: 'Google Jobs' },
     { id: 'jobicy', name: 'Jobicy' },
+    { id: 'remotive', name: 'Remotive' },
+    { id: 'arbeitnow', name: 'Arbeitnow' },
     { id: 'ats', name: 'Company ATS' },
     { id: 'infopark', name: 'Infopark' },
     { id: 'technopark', name: 'Technopark' },

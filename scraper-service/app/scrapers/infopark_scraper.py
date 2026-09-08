@@ -13,7 +13,7 @@ from app.utils.contact_extractor import extract_all_contacts
 logger = logging.getLogger(__name__)
 
 INFOPARK_BASE_URL = "https://infopark.in"
-INFOPARK_JOBS_URL = "https://infopark.in/companies-job"
+INFOPARK_AJAX_URL = "https://infopark.in/companies-job/0"
 
 DEVOPS_CORE_KEYWORDS = [
     "devops", "sre", "site reliability", "cloud", "infrastructure",
@@ -21,7 +21,7 @@ DEVOPS_CORE_KEYWORDS = [
     "ansible", "sysadmin", "system admin", "systems admin", "systems engineer",
     "system engineer", "linux admin", "linux engineer", "devsecops",
     "cloud architect", "aws", "azure", "gcp", "docker", "build and release",
-    "release engineer", "automation engineer"
+    "release engineer", "automation engineer", "network engineer", "platform engineer"
 ]
 
 NON_DEVOPS_EXCLUSIONS = [
@@ -49,13 +49,13 @@ def is_devops_relevant(title: str, text: str, search_term: str = "") -> bool:
     is_devops_query = any(k in st for k in ["devops", "sre", "cloud", "infra", "platform", "sysadmin", "linux"])
 
     if is_devops_query:
-        # Title must match at least one DevOps/Cloud core term
+        # Title matches any DevOps/Cloud core term
         if any(k in t_lower for k in DEVOPS_CORE_KEYWORDS):
             return True
 
-        # If title is generic (e.g. "Associate Engineer"), description must mention at least 2 DevOps tools
-        devops_hits = [k for k in ["kubernetes", "docker", "terraform", "ci/cd", "aws", "azure", "jenkins", "ansible", "linux", "git"] if k in desc_lower]
-        if len(devops_hits) >= 2:
+        # If title is broader (e.g. "Software Engineer", "Technical Lead"), check description for tools
+        devops_hits = [k for k in ["kubernetes", "docker", "terraform", "ci/cd", "aws", "azure", "gcp", "jenkins", "ansible", "linux", "helm", "devops"] if k in desc_lower]
+        if len(devops_hits) >= 1:
             return True
 
         return False
@@ -70,114 +70,101 @@ def scrape_infopark(
     limit: int = 50
 ) -> List[JobPost]:
     """
-    Scrapes active job vacancies directly from Infopark Kochi portal with strict DevOps filtering.
+    Scrapes active job vacancies directly from Infopark Kochi's AJAX endpoint with DevOps filtering.
     """
     logger.info(f"Scraping Infopark Kochi jobs for query: '{search_term}'...")
     jobs: List[JobPost] = []
+    clean_term = search_term.strip() if search_term else "devops"
+
+    headers = settings.DEFAULT_HEADERS.copy()
+    headers.update({
+        "X-Requested-With": "XMLHttpRequest",
+        "Accept": "application/json, text/javascript, */*; q=0.01",
+        "Referer": "https://infopark.in/companies-job",
+    })
 
     try:
-        with httpx.Client(headers=settings.DEFAULT_HEADERS, timeout=settings.DEFAULT_TIMEOUT, follow_redirects=True) as client:
-            resp = client.get(INFOPARK_JOBS_URL)
-            if resp.status_code != 200:
-                # Try fallback URL
-                resp = client.get(f"{INFOPARK_BASE_URL}/companies/job-search")
+        with httpx.Client(headers=headers, timeout=settings.DEFAULT_TIMEOUT, follow_redirects=True) as client:
+            # Query multiple pages: first with clean_term, or general all jobs if specific term has few
+            pages_to_fetch = [1, 2, 3]
+            for page in pages_to_fetch:
+                if len(jobs) >= limit:
+                    break
 
-            if resp.status_code != 200:
-                logger.warning(f"Failed to fetch Infopark page, status: {resp.status_code}")
-                return []
-
-            soup = BeautifulSoup(resp.text, "html.parser")
-
-            # Look for job rows or cards
-            # Infopark typically renders either a table or card list with class containing 'job' or 'company'
-            job_rows = soup.select("table tr, .job-item, .job-card, .company-job-box, div.row.py-2, .list-group-item")
-
-            # If standard selectors didn't match, search for links containing job detail paths
-            if not job_rows or len(job_rows) < 3:
-                job_links = soup.find_all("a", href=re.compile(r'/job|career|vacanc', re.IGNORECASE))
-                for link in job_links:
-                    title_elem = link.text.strip()
-                    if title_elem and len(title_elem) > 3:
-                        parent = link.find_parent("tr") or link.find_parent("div", class_=re.compile("card|box|item|row"))
-                        if parent and parent not in job_rows:
-                            job_rows.append(parent)
-
-            logger.info(f"Found {len(job_rows)} candidate rows on Infopark page.")
-
-            for row in job_rows:
                 try:
-                    text_content = row.get_text(" ", strip=True)
-                    if not text_content or len(text_content) < 15:
+                    resp = client.get(f"{INFOPARK_AJAX_URL}?page={page}&search={clean_term}")
+                    # If specific search term returned 404 or empty, try without search param to get all campus jobs
+                    if resp.status_code != 200 or len(resp.text) < 100:
+                        resp = client.get(f"{INFOPARK_AJAX_URL}?page={page}")
+
+                    if resp.status_code != 200:
                         continue
 
-                    # Search for job link
-                    link_elem = row.find("a", href=True)
-                    if not link_elem:
-                        continue
-                    
-                    href = link_elem["href"]
-                    if not href.startswith("http"):
-                        job_url = f"{INFOPARK_BASE_URL}{href if href.startswith('/') else '/' + href}"
-                    else:
-                        job_url = href
+                    # The response can be JSON with 'all_jobs' HTML or pure HTML
+                    html_content = ""
+                    try:
+                        data = resp.json()
+                        html_content = data.get("all_jobs", "")
+                    except Exception:
+                        html_content = resp.text
 
-                    # Extract title and company
-                    # Check table cells if row is <tr>
-                    cells = row.find_all("td")
-                    if len(cells) >= 2:
-                        title = cells[0].get_text(strip=True)
-                        company = cells[1].get_text(strip=True)
-                    else:
-                        title = link_elem.get_text(strip=True)
-                        # Company might be in another span or strong tag
-                        company_elem = row.find(class_=re.compile("company|employer|org", re.IGNORECASE)) or row.find("strong")
-                        company = company_elem.get_text(strip=True) if company_elem else "Infopark Company"
-
-                    if not title or len(title) < 2:
+                    if not html_content:
                         continue
 
-                    # Filter strictly for DevOps / Cloud relevance
-                    if not is_devops_relevant(title, text_content, search_term):
-                        continue
+                    soup = BeautifulSoup(html_content, "html.parser")
+                    rows = soup.select("tr")
+                    logger.info(f"Infopark page {page} yielded {len(rows)} table rows.")
 
-                    # Extract experience if specified (e.g. 2-4 years, 3+ yrs)
-                    exp_match = re.search(r'(\d+[\s\-\+to]+\d*\s*(?:years?|yrs?))', text_content, re.IGNORECASE)
-                    experience = exp_match.group(1).strip() if exp_match else "Experienced"
+                    for row in rows:
+                        cells = row.find_all("td")
+                        if len(cells) < 3:
+                            continue
 
-                    # Extract contacts
-                    recruiter_email, recruiter_phone, recruiter_name = extract_all_contacts(text_content)
+                        # cell 0: posted date, cell 1: title, cell 2: company, cell 3: closing date, cell 4: action link
+                        posted_date = cells[0].get_text(strip=True)
+                        title = cells[1].get_text(strip=True)
+                        company = cells[2].get_text(strip=True)
 
-                    # Date
-                    date_match = re.search(r'\b(\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4})\b', text_content)
-                    date_posted = date_match.group(1) if date_match else datetime.now().strftime("%Y-%m-%d")
+                        if not title or len(title) < 3:
+                            continue
 
-                    job_id = generate_job_id(title, company, "Kochi, Kerala")
+                        # Extract link
+                        link_elem = row.find("a", href=True)
+                        job_url = link_elem["href"] if link_elem else f"{INFOPARK_BASE_URL}/companies-job"
 
-                    job_post = JobPost(
-                        job_id=job_id,
-                        title=title,
-                        company=company,
-                        company_details="Infopark Kochi Campus",
-                        description=text_content[:2000],
-                        location="Infopark Kochi, Kerala",
-                        required_skills=[],
-                        experience=experience,
-                        salary=None,
-                        date_posted=date_posted,
-                        job_url=job_url,
-                        apply_method="Email / Infopark Portal" if recruiter_email else "Infopark Portal",
-                        recruiter_name=recruiter_name,
-                        recruiter_email=recruiter_email,
-                        recruiter_phone=recruiter_phone,
-                        source_website="Infopark Kochi",
-                        status="New"
-                    )
-                    jobs.append(job_post)
-                    if len(jobs) >= limit:
-                        break
+                        full_text = f"{title} {company}"
+                        if not is_devops_relevant(title, full_text, search_term):
+                            continue
 
-                except Exception as row_err:
-                    logger.debug(f"Error parsing Infopark row: {row_err}")
+                        closing_date = cells[3].get_text(strip=True) if len(cells) > 3 else ""
+                        desc = f"Infopark Kochi Opening: {title} at {company}. Posted: {posted_date}. Closing: {closing_date}."
+
+                        job_id = generate_job_id(title, company, "Kochi, Kerala")
+                        jobs.append(JobPost(
+                            job_id=job_id,
+                            title=title,
+                            company=company,
+                            company_details="Infopark Kochi Campus",
+                            description=desc,
+                            location="Infopark Kochi, Kerala",
+                            required_skills=["DevOps", "Linux", "Cloud"],
+                            experience="Experienced",
+                            salary=None,
+                            date_posted=posted_date or datetime.now().strftime("%Y-%m-%d"),
+                            job_url=job_url,
+                            apply_method="Infopark Direct Portal",
+                            recruiter_name=None,
+                            recruiter_email=None,
+                            recruiter_phone=None,
+                            source_website="Infopark Kochi",
+                            status="New"
+                        ))
+
+                        if len(jobs) >= limit:
+                            break
+
+                except Exception as p_err:
+                    logger.debug(f"Error fetching Infopark page {page}: {p_err}")
                     continue
 
     except Exception as e:

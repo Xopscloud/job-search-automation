@@ -29,6 +29,8 @@ export async function POST(request: Request) {
         'remoteok',
         'weworkremotely',
         'jobicy',
+        'remotive',
+        'arbeitnow',
         'bayt',
       ],
     } = body;
@@ -183,6 +185,8 @@ export async function POST(request: Request) {
               'remoteok',
               'weworkremotely',
               'jobicy',
+              'remotive',
+              'arbeitnow',
               'bayt',
             ],
           }),

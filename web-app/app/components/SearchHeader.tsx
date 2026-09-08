@@ -38,6 +38,8 @@ const AVAILABLE_SOURCES = [
   { id: 'remoteok', name: 'RemoteOK' },
   { id: 'weworkremotely', name: 'WeWorkRemotely' },
   { id: 'jobicy', name: 'Jobicy (Remote Tech)' },
+  { id: 'remotive', name: 'Remotive (DevOps)' },
+  { id: 'arbeitnow', name: 'Arbeitnow (Tech & Visa)' },
   { id: 'ats', name: 'Company ATS (Greenhouse, Lever, Ashby, Workday)' },
   { id: 'infopark', name: 'Infopark Kochi' },
   { id: 'technopark', name: 'Technopark Trivandrum' },

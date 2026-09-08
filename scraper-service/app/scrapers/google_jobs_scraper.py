@@ -3,6 +3,7 @@ import re
 from typing import List
 from datetime import datetime
 import urllib.parse
+import base64
 import httpx
 from bs4 import BeautifulSoup
 
@@ -13,8 +14,21 @@ from app.utils.contact_extractor import extract_all_contacts
 
 logger = logging.getLogger(__name__)
 
-# Search engines and aggregators for direct ATS / company career sites
-DUCKDUCKGO_HTML_URL = "https://html.duckduckgo.com/html/"
+def _decode_bing_url(raw_url: str) -> str:
+    """Decodes Bing tracking redirect URL to direct destination URL."""
+    try:
+        if "bing.com/ck/a" in raw_url and "u=" in raw_url:
+            parsed = urllib.parse.urlparse(raw_url)
+            qs = urllib.parse.parse_qs(parsed.query)
+            u_val = qs.get("u", [""])[0]
+            if u_val.startswith("a1"):
+                b64_str = u_val[2:]
+                padding = "=" * ((4 - len(b64_str) % 4) % 4)
+                return base64.b64decode(b64_str + padding).decode("utf-8", errors="ignore")
+    except Exception:
+        pass
+    return raw_url
+
 
 def scrape_google_jobs_ats(
     search_term: str = "DevOps Engineer",
@@ -23,7 +37,7 @@ def scrape_google_jobs_ats(
 ) -> List[JobPost]:
     """
     Scrapes company career portals and ATS links (Greenhouse, Lever, Workday, Ashby, SmartRecruiters, Workable)
-    via search engine dorks without requiring paid API keys.
+    via Bing Search discovery.
     """
     logger.info(f"Querying ATS career portals across the internet for: '{search_term}' (Location: '{location or 'Worldwide'}')...")
     jobs: List[JobPost] = []
@@ -35,46 +49,37 @@ def scrape_google_jobs_ats(
     else:
         query = f'"{search_term}" ({ats_sites})'
     
-    try:
-        data = {
-            "q": query,
-            "b": "",
-            "kl": "in-en" if "india" in location.lower() else "us-en"
-        }
-        
-        headers = settings.DEFAULT_HEADERS.copy()
-        headers["Referer"] = "https://html.duckduckgo.com/"
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+    }
 
+    try:
         with httpx.Client(headers=headers, timeout=settings.DEFAULT_TIMEOUT, follow_redirects=True) as client:
-            resp = client.post(DUCKDUCKGO_HTML_URL, data=data)
+            resp = client.get(f"https://www.bing.com/search?q={query}")
             if resp.status_code != 200:
-                logger.warning(f"Search request returned status {resp.status_code}")
+                logger.warning(f"Bing search request returned status {resp.status_code}")
                 return []
 
             soup = BeautifulSoup(resp.text, "html.parser")
-            results = soup.select(".result, .results_links")
+            results = soup.select("li.b_algo")
 
             for res in results:
                 try:
-                    title_elem = res.select_one(".result__title a")
-                    snippet_elem = res.select_one(".result__snippet")
+                    title_elem = res.select_one("h2 a")
+                    snippet_elem = res.select_one(".b_caption p, p")
 
                     if not title_elem:
                         continue
 
-                    raw_url = title_elem.get("href", "")
-                    # Unquote DuckDuckGo redirect URL
-                    if "uddg=" in raw_url:
-                        parsed = urllib.parse.parse_qs(urllib.parse.urlparse(raw_url).query)
-                        job_url = parsed.get("uddg", [raw_url])[0]
-                    else:
-                        job_url = raw_url
+                    raw_href = title_elem.get("href", "")
+                    job_url = _decode_bing_url(raw_href)
 
                     full_title = title_elem.get_text(strip=True)
                     snippet = snippet_elem.get_text(strip=True) if snippet_elem else ""
 
                     # Extract company name from title or URL
-                    # e.g., "Software Engineer - Stripe (jobs.lever.co/stripe/...)"
                     company = "Tech Employer via ATS"
                     if "boards.greenhouse.io/" in job_url:
                         parts = job_url.split("boards.greenhouse.io/")[-1].split("/")
@@ -97,21 +102,19 @@ def scrape_google_jobs_ats(
                     elif " - " in full_title:
                         company = full_title.split(" - ")[-1].strip()
 
-                    # Clean up job title
                     clean_title = full_title.split(" - ")[0].split(" | ")[0].strip()
-
-                    detected_location = location.strip() if location and location.strip() else "Remote / Disclosed on Portal"
+                    detected_location = location.strip() if location and location.strip() else "Remote / Global"
                     email, phone, recruiter = extract_all_contacts(snippet)
                     job_id = generate_job_id(clean_title, company, detected_location)
 
-                    job = JobPost(
+                    jobs.append(JobPost(
                         job_id=job_id,
                         title=clean_title,
                         company=company,
                         company_details="Direct Company Career Portal / ATS",
                         description=snippet,
-                        location=location,
-                        required_skills=[],
+                        location=detected_location,
+                        required_skills=["DevOps", "Cloud", "Kubernetes"],
                         experience="Experienced",
                         salary=None,
                         date_posted=datetime.now().strftime("%Y-%m-%d"),
@@ -120,10 +123,9 @@ def scrape_google_jobs_ats(
                         recruiter_name=recruiter,
                         recruiter_email=email,
                         recruiter_phone=phone,
-                        source_website="Company Career Website",
+                        source_website="Company ATS",
                         status="New"
-                    )
-                    jobs.append(job)
+                    ))
 
                     if len(jobs) >= limit:
                         break
