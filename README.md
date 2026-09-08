@@ -20,26 +20,40 @@ Orchestrated using **n8n** and containerized microservices running on **AWS EC2*
 
 ---
 
+> 📖 **Comprehensive Guides & Resources:**
+> - 📄 **[Full Technical Project Documentation](PROJECT_DOCUMENTATION.md)**: Deep-dive architecture, microservices, anti-bot bypass strategies, and deployment guide.
+> - 💼 **[LinkedIn Portfolio & Social Kit](LINKEDIN_PORTFOLIO_KIT.md)**: Pre-formatted LinkedIn project section entry and 3 viral post templates.
+
+---
+
 ## 🌟 Key Features
 
-- **Multi-Source Scraping**:
-  - **LinkedIn, Indeed, Naukri, Glassdoor**: Scraped via containerized `python-jobspy`.
-  - **Infopark Kochi**: Dedicated parser for `infopark.in` vacancies with HR contact details.
-  - **Technopark Trivandrum**: Parser for `technopark.org` active postings and walk-in drives.
-  - **Company Career Portals (ATS)**: Automated indexing of direct Greenhouse, Lever, and Workday postings.
-  - **Apify Cloud Integration**: Pre-configured sub-workflow for users preferring Apify cloud actors with residential proxies.
+- **Concurrent Multi-Source Scraping Across 13 Portals**:
+  - **Major Portals**: LinkedIn, Indeed, Naukri, Glassdoor, ZipRecruiter, Google Jobs, Company ATS.
+  - **Regional IT Tech Parks**: Infopark Kochi (HTML table parser + HR contacts) & Technopark Trivandrum.
+  - **Global Remote Boards**: RemoteOK, WeWorkRemotely, Jobicy.
+  - **Gulf / Middle East**: Bayt (UAE, Qatar, Saudi Arabia cloud vacancies).
+  - **Dual-Layer Anti-Bot Fallback**: Automatically bypasses Cloudflare/Akamai blocks on AWS EC2 datacenter IPs using live search dorks.
+- **Modern Next.js 16 Web Dashboard**:
+  - **Indian IT City Selector**: Pre-configured filters for Kochi/Ernakulam, Trivandrum, Bangalore, Hyderabad, Pune, Chennai, Mumbai, Delhi NCR, Coimbatore, and Remote.
+  - **Strict DevOps Filtering**: Heuristic keyword inclusion and negative exclusion rules (`is_devops_relevant`) to eliminate non-engineering listings (Digital Marketing, Visual Builders, QA Manual).
+  - **Pagination & Limit Removal**: Smooth browsing with customizable cards-per-page (12, 24, 48, All) and page navigation.
+- **Automatic Application Tracking (ATS) & Job Card Status**:
+  - Automatically identifies and marks jobs as **`✓ Already Applied`** when clicking "Apply on Portal", sending a Gmail pitch, or matching historical tracking records.
+  - Emerald highlight accent, status ribbon banners (date, channel, status badge), and **1-click manual apply toggles**.
+  - Explorer toolbar filters: `✓ Applied ({count})` and `Hide Applied`.
+- **Recruiter Cold Email Outreach Studio**:
+  - Built-in cold email drawer connected to Gmail API and n8n webhooks.
+  - Automatically generates customized pitches and attaches your PDF resume for instant 1-click delivery.
 - **AI Relevance Scoring & Parsing**:
-  - Automatically evaluates job fit (0–100% Match Score) based on your target titles, skills, and years of experience.
-  - Supports **Groq (Free Llama 3.3 70B)**, **Google Gemini 1.5 Flash**, **OpenAI GPT-4o-mini**, or **Anthropic Claude**.
-  - Extracts recruiter details: Recruiter Name, Direct HR Email, and Phone Number from descriptions.
+  - Automatically evaluates job fit (0–100% Match Score) based on your target titles, skills, and years of experience using Llama 3.3 70B, Gemini 1.5 Flash, or GPT-4o.
 - **Deduplication Engine**:
   - Deterministic MD5 hash (`hash(company + title + location)`) prevents re-processing existing postings.
 - **Dual Output (Google Sheets & Excel)**:
   - **Google Sheets**: Live synchronization to an "Active Jobs" sheet with color-coded score status.
-  - **Excel (`.xlsx`)**: Formatted workbook with frozen headers, auto-adjusted columns, conditional formatting, and clickable hyperlinks (`mailto:` and application URLs).
+  - **Excel (`.xlsx`)**: Formatted workbook with frozen headers, auto-adjusted columns, and clickable hyperlinks.
 - **Responsive Email Digest**:
   - HTML summary email delivered to your inbox containing top match cards, recruiter contacts, and the `.xlsx` file attached.
-  - Priority alert triggers via Telegram / Slack / Discord if a high match ($\ge 80\%$) is detected.
 
 ---
 
