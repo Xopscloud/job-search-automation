@@ -250,13 +250,18 @@ export function recordJobApplication(data: {
       ...existing[foundIndex],
       applied_on: todayStr,
       follow_up_date: followUpStr,
-      status: data.status || 'Pending',
+      status: data.status || existing[foundIndex].status || 'Applied',
       source: data.source || existing[foundIndex].source,
       applied_through: data.applied_through || existing[foundIndex].applied_through,
       contact_email: data.contact_email || existing[foundIndex].contact_email,
       notes: data.notes || existing[foundIndex].notes,
+      job_id: data.job_id || existing[foundIndex].job_id,
       updated_at: new Date().toISOString(),
     };
+    existing[foundIndex] = updatedRecord;
+    saveApplicationsToStorage(existing);
+    notifyTrackerChange();
+
     // Also sync to server API asynchronously
     if (typeof window !== 'undefined') {
       fetch('/api/applications', {
@@ -277,7 +282,7 @@ export function recordJobApplication(data: {
     role: data.role.trim(),
     applied_on: todayStr,
     follow_up_date: followUpStr,
-    status: data.status || 'Pending',
+    status: data.status || 'Applied',
     source: data.source || 'Direct Outreach',
     salary_aed: data.salary_aed || '',
     applied_through: data.applied_through || 'mail',
@@ -303,6 +308,40 @@ export function recordJobApplication(data: {
   }
 
   return newRecord;
+}
+
+/**
+ * Synchronizes local applications with server-side database (data/applied_jobs.json).
+ */
+export async function syncApplicationsFromServer(): Promise<JobApplicationRecord[]> {
+  if (typeof window === 'undefined') return loadApplicationsFromStorage();
+  try {
+    const res = await fetch('/api/applications');
+    if (res.ok) {
+      const json = await res.json();
+      if (json.success && Array.isArray(json.data) && json.data.length > 0) {
+        const local = loadApplicationsFromStorage();
+        const map = new Map<string, JobApplicationRecord>();
+        json.data.forEach((r: JobApplicationRecord) => {
+          const key = r.job_id || `${cleanCompanyName(r.company)}_${cleanRoleName(r.role)}`;
+          map.set(key, r);
+        });
+        local.forEach((r: JobApplicationRecord) => {
+          const key = r.job_id || `${cleanCompanyName(r.company)}_${cleanRoleName(r.role)}`;
+          if (!map.has(key)) {
+            map.set(key, r);
+          }
+        });
+        const merged = Array.from(map.values());
+        saveApplicationsToStorage(merged);
+        notifyTrackerChange();
+        return merged;
+      }
+    }
+  } catch (err) {
+    // Network or server error, fallback to local storage
+  }
+  return loadApplicationsFromStorage();
 }
 
 /**

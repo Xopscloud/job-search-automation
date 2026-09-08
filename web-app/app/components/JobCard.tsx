@@ -518,6 +518,24 @@ johnsonthomas.devops@gmail.com`;
                   href={mailtoUrl}
                   className="btn-mailto-fallback"
                   title="Open locally in your default email client"
+                  onClick={() => {
+                    if (!appliedInfo.applied) {
+                      const res = recordJobApplication({
+                        company: job.company,
+                        role: job.title,
+                        applied_on: formatDate(new Date()),
+                        follow_up_date: formatFutureDate(5),
+                        status: 'Applied',
+                        source: job.source_website,
+                        salary_aed: job.salary || '',
+                        applied_through: 'mail',
+                        contact_email: job.recruiter_email || '',
+                        notes: 'Opened draft in external mail app',
+                        job_id: job.job_id,
+                      });
+                      setAppliedInfo({ applied: true, record: res });
+                    }
+                  }}
                 >
                   <span>Open in Mail App</span>
                   <ExternalLinkIcon size={13} />

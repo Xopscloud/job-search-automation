@@ -4,7 +4,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { JobCard } from './JobCard';
 import { DownloadIcon, SearchIcon, RocketIcon, PinIcon } from './Icons';
 import { JobPost, JobApplicationRecord } from '../types';
-import { loadApplicationsFromStorage, isJobApplied } from '../applications/trackerStorage';
+import { loadApplicationsFromStorage, isJobApplied, syncApplicationsFromServer } from '../applications/trackerStorage';
 
 interface JobExplorerProps {
   jobs: JobPost[];
@@ -57,6 +57,11 @@ export const JobExplorer: React.FC<JobExplorerProps> = ({ jobs, searchTerm, onTr
       setApplications(loadApplicationsFromStorage());
     };
     syncApplications();
+    syncApplicationsFromServer().then((merged) => {
+      if (merged && merged.length > 0) {
+        setApplications(merged);
+      }
+    });
 
     if (typeof window !== 'undefined') {
       window.addEventListener('devopspulse_tracker_updated', syncApplications);
