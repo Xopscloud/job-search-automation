@@ -1,6 +1,5 @@
 'use client';
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   BuildingIcon,
   PinIcon,
@@ -12,8 +11,14 @@ import {
   ChevronUpIcon,
   CheckIcon,
 } from './Icons';
-import { JobPost } from '../types';
-import { recordJobApplication, formatDate, formatFutureDate } from '../applications/trackerStorage';
+import { JobPost, JobApplicationRecord } from '../types';
+import {
+  recordJobApplication,
+  isJobApplied,
+  toggleJobApplication,
+  formatDate,
+  formatFutureDate,
+} from '../applications/trackerStorage';
 
 interface JobCardProps {
   job: JobPost;
@@ -76,6 +81,42 @@ johnsonthomas.devops@gmail.com`;
   const [sendError, setSendError] = useState<string | null>(job.email_draft?.error || null);
   const [copied, setCopied] = useState<boolean>(false);
 
+  // Track applied status reactively
+  const [appliedInfo, setAppliedInfo] = useState<{ applied: boolean; record?: JobApplicationRecord }>({
+    applied: false,
+  });
+
+  useEffect(() => {
+    const syncStatus = () => {
+      setAppliedInfo(isJobApplied(job));
+    };
+    syncStatus();
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('devopspulse_tracker_updated', syncStatus);
+      window.addEventListener('storage', syncStatus);
+    }
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('devopspulse_tracker_updated', syncStatus);
+        window.removeEventListener('storage', syncStatus);
+      }
+    };
+  }, [job]);
+
+  const handleToggleApplied = (e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    const res = toggleJobApplication({
+      job_id: job.job_id,
+      company: job.company,
+      title: job.title,
+      source_website: job.source_website,
+      salary: job.salary,
+      recruiter_email: job.recruiter_email,
+    });
+    setAppliedInfo(res);
+  };
+
   const handleSendViaGmail = async () => {
     if (!job.recruiter_email || isSending) return;
 
@@ -105,13 +146,13 @@ johnsonthomas.devops@gmail.com`;
         setSendSuccess(true);
         setSentAt(data.sent_at || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
 
-        // Automatically log into tracking sheet
-        recordJobApplication({
+        // Automatically log into tracking sheet as Applied
+        const rec = recordJobApplication({
           company: job.company,
           role: job.title,
           applied_on: formatDate(new Date()),
           follow_up_date: formatFutureDate(5),
-          status: 'Pending',
+          status: 'Applied',
           source: job.source_website,
           salary_aed: job.salary || '',
           applied_through: 'mail',
@@ -119,6 +160,7 @@ johnsonthomas.devops@gmail.com`;
           notes: 'Outreach email dispatched via Gmail',
           job_id: job.job_id,
         });
+        setAppliedInfo({ applied: true, record: rec });
       } else {
         setSendError(data.error || 'Failed to dispatch email via n8n webhook.');
       }
@@ -145,8 +187,46 @@ johnsonthomas.devops@gmail.com`;
     : null;
 
   return (
-    <div className="job-card" id={`job-card-${job.job_id}`}>
+    <div
+      className={`job-card ${appliedInfo.applied ? 'job-card-applied' : ''}`}
+      id={`job-card-${job.job_id}`}
+    >
       <div>
+        {/* Applied Ribbon Banner when Job is marked as Applied */}
+        {appliedInfo.applied && (
+          <div className="job-applied-banner">
+            <div className="job-applied-banner-left">
+              <span className="job-applied-pill">
+                <CheckIcon size={13} color="#ffffff" />
+                <span>Already Applied</span>
+              </span>
+              {appliedInfo.record?.applied_on && (
+                <span className="job-applied-meta">
+                  Applied on <strong>{appliedInfo.record.applied_on}</strong>
+                </span>
+              )}
+              {appliedInfo.record?.applied_through && (
+                <span className="job-applied-channel">
+                  via {appliedInfo.record.applied_through}
+                </span>
+              )}
+              {appliedInfo.record?.status && (
+                <span className={`job-applied-status-pill status-${appliedInfo.record.status.toLowerCase()}`}>
+                  {appliedInfo.record.status}
+                </span>
+              )}
+            </div>
+            <button
+              type="button"
+              className="btn-unmark-applied"
+              onClick={handleToggleApplied}
+              title="Click to unmark as applied"
+            >
+              ✕ Unmark
+            </button>
+          </div>
+        )}
+
         {/* Top Header: Title, Company, Score Gauge */}
         <div className="job-card-header">
           <div className="job-title-company">
@@ -454,27 +534,49 @@ johnsonthomas.devops@gmail.com`;
           href={job.job_url}
           target="_blank"
           rel="noopener noreferrer"
-          className="btn-apply-primary"
+          className={`btn-apply-primary ${appliedInfo.applied ? 'is-applied' : ''}`}
           id={`apply-link-${job.job_id}`}
           onClick={() => {
-            recordJobApplication({
-              company: job.company,
-              role: job.title,
-              applied_on: formatDate(new Date()),
-              follow_up_date: formatFutureDate(5),
-              status: 'Applied',
-              source: job.source_website,
-              salary_aed: job.salary || '',
-              applied_through: 'site',
-              contact_email: job.recruiter_email || '',
-              notes: 'Applied via external portal link',
-              job_id: job.job_id,
-            });
+            if (!appliedInfo.applied) {
+              const res = recordJobApplication({
+                company: job.company,
+                role: job.title,
+                applied_on: formatDate(new Date()),
+                follow_up_date: formatFutureDate(5),
+                status: 'Applied',
+                source: job.source_website,
+                salary_aed: job.salary || '',
+                applied_through: 'site',
+                contact_email: job.recruiter_email || '',
+                notes: 'Applied via external portal link',
+                job_id: job.job_id,
+              });
+              setAppliedInfo({ applied: true, record: res });
+            }
           }}
         >
-          <span>Apply on Portal</span>
+          <span>{appliedInfo.applied ? '✓ Applied • Portal ↗' : 'Apply on Portal'}</span>
           <ExternalLinkIcon size={14} />
         </a>
+
+        {/* 1-Click Manual Mark as Applied Toggle */}
+        <button
+          type="button"
+          className={`btn-toggle-applied ${appliedInfo.applied ? 'applied' : ''}`}
+          onClick={handleToggleApplied}
+          title={appliedInfo.applied ? 'Click to unmark as applied' : 'Click to mark as applied in your tracking sheet'}
+        >
+          {appliedInfo.applied ? (
+            <>
+              <CheckIcon size={13} color="#15803d" />
+              <span>Marked as Applied</span>
+            </>
+          ) : (
+            <>
+              <span>+ Mark as Applied</span>
+            </>
+          )}
+        </button>
 
         {job.recruiter_email && (
           <button

@@ -3,7 +3,8 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { JobCard } from './JobCard';
 import { DownloadIcon, SearchIcon, RocketIcon, PinIcon } from './Icons';
-import { JobPost } from '../types';
+import { JobPost, JobApplicationRecord } from '../types';
+import { loadApplicationsFromStorage, isJobApplied } from '../applications/trackerStorage';
 
 interface JobExplorerProps {
   jobs: JobPost[];
@@ -47,6 +48,28 @@ export const JobExplorer: React.FC<JobExplorerProps> = ({ jobs, searchTerm, onTr
   const [filterQuery, setFilterQuery] = useState<string>('');
   const [isExporting, setIsExporting] = useState<boolean>(false);
 
+  // Application tracker sync state
+  const [applications, setApplications] = useState<JobApplicationRecord[]>([]);
+  const [appliedFilter, setAppliedFilter] = useState<'all' | 'applied_only' | 'unapplied_only'>('all');
+
+  useEffect(() => {
+    const syncApplications = () => {
+      setApplications(loadApplicationsFromStorage());
+    };
+    syncApplications();
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('devopspulse_tracker_updated', syncApplications);
+      window.addEventListener('storage', syncApplications);
+    }
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('devopspulse_tracker_updated', syncApplications);
+        window.removeEventListener('storage', syncApplications);
+      }
+    };
+  }, []);
+
   // Pagination state (default: 12 cards per page)
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [pageSize, setPageSize] = useState<number>(12);
@@ -54,7 +77,7 @@ export const JobExplorer: React.FC<JobExplorerProps> = ({ jobs, searchTerm, onTr
   // Reset to page 1 whenever any filter changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [selectedPortal, selectedLocation, minScoreFilter, onlyOutreachReady, onlyDevopsRoles, filterQuery, pageSize]);
+  }, [selectedPortal, selectedLocation, minScoreFilter, onlyOutreachReady, onlyDevopsRoles, appliedFilter, filterQuery, pageSize]);
 
   // Extract unique locations dynamically from all retrieved jobs
   const availableLocations = useMemo(() => {
@@ -69,6 +92,10 @@ export const JobExplorer: React.FC<JobExplorerProps> = ({ jobs, searchTerm, onTr
       .map(([name, count]) => ({ name, count }))
       .sort((a, b) => b.count - a.count);
   }, [jobs]);
+
+  const appliedCount = useMemo(() => {
+    return jobs.filter((j) => isJobApplied(j, applications).applied).length;
+  }, [jobs, applications]);
 
   const filteredJobs = useMemo(() => {
     return jobs.filter((job) => {
@@ -132,7 +159,15 @@ export const JobExplorer: React.FC<JobExplorerProps> = ({ jobs, searchTerm, onTr
         return false;
       }
 
-      // 6. In-page search text filter
+      // 6. Applied Status Filter (Show only applied or hide applied)
+      if (appliedFilter === 'applied_only' && !isJobApplied(job, applications).applied) {
+        return false;
+      }
+      if (appliedFilter === 'unapplied_only' && isJobApplied(job, applications).applied) {
+        return false;
+      }
+
+      // 7. In-page search text filter
       if (filterQuery.trim()) {
         const q = filterQuery.toLowerCase();
         const matchTitle = (job.title || '').toLowerCase().includes(q);
@@ -147,7 +182,7 @@ export const JobExplorer: React.FC<JobExplorerProps> = ({ jobs, searchTerm, onTr
 
       return true;
     });
-  }, [jobs, selectedPortal, selectedLocation, minScoreFilter, onlyOutreachReady, onlyDevopsRoles, filterQuery]);
+  }, [jobs, selectedPortal, selectedLocation, minScoreFilter, onlyOutreachReady, onlyDevopsRoles, appliedFilter, applications, filterQuery]);
 
   const totalPages = pageSize === -1 ? 1 : Math.ceil(filteredJobs.length / pageSize) || 1;
 
@@ -241,6 +276,19 @@ export const JobExplorer: React.FC<JobExplorerProps> = ({ jobs, searchTerm, onTr
           <span className="results-count-badge">
             {filteredJobs.length} of {jobs.length} Verified
           </span>
+          {appliedCount > 0 && (
+            <span
+              className="results-count-badge"
+              style={{
+                background: '#dcfce7',
+                color: '#15803d',
+                border: '1px solid #86efac',
+                fontWeight: 700,
+              }}
+            >
+              ✓ {appliedCount} Applied
+            </span>
+          )}
         </div>
 
         {/* Portal Filter Pills & Search */}
@@ -295,6 +343,38 @@ export const JobExplorer: React.FC<JobExplorerProps> = ({ jobs, searchTerm, onTr
           >
             🛡️ DevOps Only {onlyDevopsRoles ? '✓' : ''}
           </button>
+
+          <button
+            type="button"
+            className={`portal-filter-btn ${appliedFilter === 'applied_only' ? 'active' : ''}`}
+            onClick={() => setAppliedFilter(appliedFilter === 'applied_only' ? 'all' : 'applied_only')}
+            title="Filter for jobs you have already applied to"
+            style={
+              appliedFilter === 'applied_only'
+                ? { background: '#059669', color: '#ffffff', borderColor: '#059669', fontWeight: 700 }
+                : appliedCount > 0
+                ? { borderColor: '#86efac', color: '#166534', background: '#f0fdf4', fontWeight: 600 }
+                : {}
+            }
+          >
+            ✓ Applied ({appliedCount})
+          </button>
+
+          {appliedCount > 0 && (
+            <button
+              type="button"
+              className={`portal-filter-btn ${appliedFilter === 'unapplied_only' ? 'active' : ''}`}
+              onClick={() => setAppliedFilter(appliedFilter === 'unapplied_only' ? 'all' : 'unapplied_only')}
+              title="Hide jobs already marked as applied"
+              style={
+                appliedFilter === 'unapplied_only'
+                  ? { background: '#475569', color: '#ffffff', borderColor: '#475569', fontWeight: 600 }
+                  : {}
+              }
+            >
+              {appliedFilter === 'unapplied_only' ? '👁️ Showing Unapplied' : 'Hide Applied'}
+            </button>
+          )}
 
           <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
             <input

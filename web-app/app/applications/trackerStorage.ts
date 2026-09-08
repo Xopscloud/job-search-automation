@@ -257,10 +257,15 @@ export function recordJobApplication(data: {
       notes: data.notes || existing[foundIndex].notes,
       updated_at: new Date().toISOString(),
     };
-    const nextList = [...existing];
-    nextList[foundIndex] = updatedRecord;
-    saveApplicationsToStorage(nextList);
-    notifyTrackerChange();
+    // Also sync to server API asynchronously
+    if (typeof window !== 'undefined') {
+      fetch('/api/applications', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedRecord),
+      }).catch(() => {});
+    }
+
     return updatedRecord;
   }
 
@@ -287,7 +292,135 @@ export function recordJobApplication(data: {
   const nextList = [newRecord, ...existing];
   saveApplicationsToStorage(nextList);
   notifyTrackerChange();
+
+  // Also sync to server API asynchronously
+  if (typeof window !== 'undefined') {
+    fetch('/api/applications', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newRecord),
+    }).catch(() => {});
+  }
+
   return newRecord;
+}
+
+/**
+ * Normalizes company strings by stripping common legal entities, punctuation and whitespace.
+ */
+export function cleanCompanyName(company: string): string {
+  return (company || '')
+    .toLowerCase()
+    .replace(/\b(private|pvt|ltd|limited|llp|inc|incorporated|corp|corporation|technologies|tech|solutions|services|group|india)\b/gi, '')
+    .replace(/[^a-z0-9]/g, '')
+    .trim();
+}
+
+/**
+ * Normalizes role strings by removing punctuation and whitespace.
+ */
+export function cleanRoleName(role: string): string {
+  return (role || '').toLowerCase().replace(/[^a-z0-9]/g, '').trim();
+}
+
+/**
+ * Checks if a given job matches an existing application record in storage.
+ */
+export function isJobApplied(
+  job: { job_id?: string; company?: string; title?: string; role?: string },
+  applications?: JobApplicationRecord[]
+): { applied: boolean; record?: JobApplicationRecord } {
+  const list = applications || loadApplicationsFromStorage();
+  if (!list || list.length === 0) return { applied: false };
+
+  const targetJobId = (job.job_id || '').trim();
+  const rawCompany = (job.company || '').trim();
+  const rawTitle = (job.title || job.role || '').trim();
+
+  const normCompany = cleanCompanyName(rawCompany);
+  const normTitle = cleanRoleName(rawTitle);
+
+  const found = list.find((app) => {
+    // 1. Direct Job ID Match
+    if (targetJobId && app.job_id && app.job_id === targetJobId) {
+      return true;
+    }
+
+    // 2. Company Match
+    const appNormCompany = cleanCompanyName(app.company);
+    if (!appNormCompany || !normCompany) return false;
+
+    const companyMatches =
+      appNormCompany === normCompany ||
+      appNormCompany.includes(normCompany) ||
+      normCompany.includes(appNormCompany);
+
+    if (!companyMatches) return false;
+
+    // 3. Role / Title Match
+    const appNormRole = cleanRoleName(app.role);
+    if (!appNormRole && !normTitle) return true;
+
+    // Direct role equality or containment
+    if (
+      appNormRole === normTitle ||
+      appNormRole.includes(normTitle) ||
+      normTitle.includes(appNormRole)
+    ) {
+      return true;
+    }
+
+    // Both are DevOps/SRE/Cloud roles at the same company
+    const isBothDevOps =
+      (appNormRole.includes('devops') || appNormRole.includes('sre') || appNormRole.includes('cloud')) &&
+      (normTitle.includes('devops') || normTitle.includes('sre') || normTitle.includes('cloud'));
+
+    return isBothDevOps;
+  });
+
+  return { applied: Boolean(found), record: found };
+}
+
+/**
+ * Toggles applied status for a job.
+ * If already applied, unmarks it. If not applied, records it as Applied.
+ */
+export function toggleJobApplication(
+  job: {
+    job_id: string;
+    company: string;
+    title: string;
+    source_website?: string;
+    salary?: string;
+    recruiter_email?: string | null;
+  }
+): { applied: boolean; record?: JobApplicationRecord } {
+  const existing = loadApplicationsFromStorage();
+  const { applied, record } = isJobApplied(job, existing);
+
+  if (applied && record) {
+    // Remove record from tracking storage
+    const nextList = existing.filter((r) => r.id !== record.id);
+    saveApplicationsToStorage(nextList);
+    notifyTrackerChange();
+    return { applied: false };
+  } else {
+    // Mark as applied
+    const newRecord = recordJobApplication({
+      company: job.company,
+      role: job.title,
+      applied_on: formatDate(new Date()),
+      follow_up_date: formatFutureDate(5),
+      status: 'Applied',
+      source: job.source_website || 'Direct',
+      salary_aed: job.salary || '',
+      applied_through: 'site',
+      contact_email: job.recruiter_email || '',
+      notes: 'Marked as applied from job card',
+      job_id: job.job_id,
+    });
+    return { applied: true, record: newRecord };
+  }
 }
 
 function notifyTrackerChange() {
